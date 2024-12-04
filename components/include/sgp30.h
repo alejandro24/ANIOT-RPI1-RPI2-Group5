@@ -1,0 +1,18 @@
+#ifndef SPG30_H
+#define SPG30_H
+#include "esp_err.h"
+#include "esp_event.h"
+#include "esp_event_base.h"
+
+#define SHARP430_UNIT CONFIG_SHARP430_UNIT
+#define SHARP430_CHAN CONFIG_SHARP430_CHAN
+#define SHARP430_BITWIDTH CONFIG_SHARP430_BITWIDTH
+#define SHARP430_ATTEN CONFIG_SHARP430_ATTEN
+#define SHARP430_NUM_AVERAGES CONFIG_SHARP430_NUM_AVERAGES
+
+typedef enum {
+    SENSOR_EVENT_DISTANCE_NEW,
+} dist_event_id_t ;
+ESP_EVENT_DECLARE_BASE(SENSOR_EVENTS);
+
+#endif

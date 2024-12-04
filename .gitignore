@@ -110,5 +110,5 @@ XUNIT_RESULT*.xml
 .vale/styles/*
 
 # config
-sdkconfig*
-!sdkconfig.defaults
+sdkconfig
+sdkconfig.old
