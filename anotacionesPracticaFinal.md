@@ -40,4 +40,5 @@
 ## Cosas importantes
 - Para SNTP cuando se arranque habrá que conectarse y luego hacer uso del RTC de la placa.
 - Para el arranque de cara al deep sleep, comprobar que ya se tengan las cosas necesarias en el provisionamiento softAp.
-
+- El supply voltage (VDD) para el sensor deber de un mínimo de -0,3V y un máximo de +2,16V. Nuestra placa ofrece una salida de 3,3V
+pero en internet pone que se ha probado con 3,3V y no pasa nada. 
