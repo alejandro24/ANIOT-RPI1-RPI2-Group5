@@ -6,13 +6,18 @@
 #include "esp_event_base.h"
 #include "driver/i2c_master.h"
 
-#define SPG30_I2C_ADDR ((uint8_t)0x58) /* I2C address of SPG30 sensor */
+#define SPG30_I2C_ADDR ((uint8_t) 0x58) /* I2C address of SPG30 sensor */
+#define SPG30_CRC_8_POLY ((uint8_t) 0x31) /* CRC-8 generator polynomial */
 
 typedef enum {
     SENSOR_EVENT_DISTANCE_NEW,
 } mox_event_id_t ;
+// SGP30 register write only addresses
+typedef enum {
+    SGP30_REG_GET_SERIAL_ID = 0x3682,
+} sgp30_register_w_t ;
 
-// SGP30 register addreses
+// SGP30 register read and write addresses
 typedef enum {
     SGP30_REG_INIT_AIR_QUALITY = 0x2003, /* */
     SGP30_REG_MEASURE_AIR_QUALITY = 0x2008, /* */
@@ -22,7 +27,7 @@ typedef enum {
     SGP30_REG_MEASURE_TEST = 0x2032, /* */
     SGP30_REG_GET_FEATURE_SET_VERSION = 0x202f, /* */
     SGP30_REG_MEASURE_RAW_SIGNALS = 0x2050, /* */
-} sgp30_register_addr_t;
+} sgp30_register_rw_t;
 
 ESP_EVENT_DECLARE_BASE(SENSOR_EVENTS);
 
