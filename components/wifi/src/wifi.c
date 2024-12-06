@@ -1,75 +1,73 @@
-// wifi_manager/src/wifi_manager.c
+#include "wifi.h"
+#include <esp_log.h>
+#include <esp_wifi.h>
+#include <esp_event.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
-#include "wifi_manager.h"
-#include "esp_log.h"
-#include "esp_wifi.h"
-#include "esp_event.h"
-#include "esp_netif.h"
-#include "nvs_flash.h"
+static const char *TAG = "WIFI";
 
-static const char *TAG = "wifi_manager";
-
-// Configuración Wi-Fi
-static wifi_config_t wifi_config = {
+// WiFi configuration (using WPA2)
+wifi_config_t wifi_config = {
     .sta = {
-        .ssid = "your_ssid",   // SSID de la red Wi-Fi
-        .password = "your_password", // Contraseña de la red Wi-Fi
+        .ssid = CONFIG_ESP_WIFI_SSID,  // Defined in menuconfig
+        .password = CONFIG_ESP_WIFI_PASSWORD,  // Defined in menuconfig
+        .authmode = WIFI_AUTH_WPA2_PSK,
+        .pmf_cfg = { 
+            .required = false, 
+        },
     },
 };
 
-// Maneja los eventos de conexión/desconexión
-static esp_err_t event_handler(void *ctx, system_event_t *event) {
-    switch (event->event_id) {
-        case SYSTEM_EVENT_STA_START:
-            ESP_LOGI(TAG, "Iniciando conexión Wi-Fi...");
-            esp_wifi_connect();
+// WiFi event handler to manage connection and reconnection
+static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
+    static int retry_count = 0;
+    
+    switch (event_id) {
+        case WIFI_EVENT_STA_START:
+            ESP_LOGI(TAG, "Connecting to WiFi...");
+            esp_wifi_connect();  // Initiates WiFi connection
             break;
-        case SYSTEM_EVENT_STA_CONNECTED:
-            ESP_LOGI(TAG, "Conectado a %s", wifi_config.sta.ssid);
+        case WIFI_EVENT_STA_CONNECTED:
+            retry_count = 0;  // Reset retry count upon successful connection
+            ESP_LOGI(TAG, "Successfully connected to WiFi");
+
+            // Enable Power Save Mode after connection
+            ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_MIN_MODEM));  // Set power save mode to minimum
+            ESP_LOGI(TAG, "WiFi Power Save Mode enabled");
             break;
-        case SYSTEM_EVENT_STA_DISCONNECTED:
-            ESP_LOGW(TAG, "Desconectado, intentando reconectar...");
-            esp_wifi_connect();
+        case WIFI_EVENT_STA_DISCONNECTED:
+            ESP_LOGI(TAG, "WiFi disconnected, attempting reconnection...");
+            if (retry_count < 5) {  // Try reconnecting up to 5 times
+                esp_wifi_connect();
+                retry_count++;
+            } else {
+                ESP_LOGE(TAG, "Failed to connect to WiFi after 5 attempts");
+                // Here, you can trigger some other action if the connection fails (e.g., LED blink, reset, etc.)
+            }
             break;
         default:
             break;
     }
-    return ESP_OK;
 }
 
-// Inicializa el Wi-Fi
-void wifi_manager_init(void) {
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(ret);
+void wifi_init_sta(void) {
+    // Initialize WiFi stack and set the WiFi mode to STA (Station mode)
+    ESP_ERROR_CHECK(esp_netif_init());  // Initialize the network interface layer
+    ESP_ERROR_CHECK(esp_event_loop_create_default());  // Create the default event loop
 
-    esp_netif_init();
-    esp_event_loop_create_default();
-    esp_netif_t *esp_netif = esp_netif_create_default_wifi_sta();
+    esp_netif_create_default_wifi_sta();  // Create default WiFi interface for STA mode
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));  // Initialize the WiFi driver
 
-    ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_FLASH));
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));  // Establecer modo estación (STA)
-    ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
+    // Register event handler to listen to WiFi events (e.g., connected, disconnected)
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL, NULL));
+
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));  // Set WiFi mode to STA
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));  // Set WiFi configuration (SSID, password)
+
+    // Start the WiFi driver
     ESP_ERROR_CHECK(esp_wifi_start());
-}
-
-// Conecta al Wi-Fi con los parámetros especificados
-void wifi_manager_connect(const char *ssid, const char *password) {
-    strncpy((char *)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid));
-    strncpy((char *)wifi_config.sta.password, password, sizeof(wifi_config.sta.password));
-
-    ESP_LOGI(TAG, "Conectando a %s...", ssid);
-    esp_wifi_disconnect();
-    esp_wifi_connect();
-}
-
-// Reconexión automática en caso de desconexión
-void wifi_manager_reconnect(void) {
-    esp_wifi_connect();
+    ESP_LOGI(TAG, "WiFi initialization completed");
 }

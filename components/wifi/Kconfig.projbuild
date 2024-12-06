@@ -1,0 +1,35 @@
+menu "WiFi Configuration"
+
+    config ESP_WIFI_SSID
+        string "WiFi SSID"
+        default "myssid"
+        help
+            The SSID of the WiFi network.
+
+    config ESP_WIFI_PASSWORD
+        string "WiFi Password"
+        default "mypassword"
+        help
+            The password for the WiFi network (WPA2 security).
+
+    config ESP_WIFI_POWER_SAVE
+        bool "Enable WiFi Power Save Mode"
+        default y
+        help
+            Enable or disable WiFi Power Save mode to reduce power consumption.
+
+    config ESP_WIFI_MAX_RETRIES
+        int "Maximum WiFi Retry Count"
+        default 5
+        range 1 10
+        help
+            The number of times the device will attempt to reconnect to WiFi before giving up.
+
+    config ESP_WIFI_LOG_LEVEL
+        int "WiFi Debug Log Level"
+        default 3
+        range 0 5
+        help
+            The log level for WiFi debugging. 0 = None, 1 = Error, 2 = Warning, 3 = Info, 4 = Debug, 5 = Verbose.
+
+endmenu
