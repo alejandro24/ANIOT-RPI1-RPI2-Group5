@@ -1,10 +1,13 @@
-// wifi_manager/include/wifi_manager.h
+#ifndef WIFI_H
+#define WIFI_H
 
-#ifndef WIFI_MANAGER_H
-#define WIFI_MANAGER_H
+// Initializes WiFi in Station mode (STA)
+void wifi_init_sta(void);
 
-void wifi_manager_init(void);  // Inicializa la conexión Wi-Fi
-void wifi_manager_connect(const char *ssid, const char *password);  // Conecta al Wi-Fi con SSID y contraseña
-void wifi_manager_reconnect(void);  // Función para reconectar automáticamente si la conexión se pierde
+// Debugging utility: Logs the current Power Save mode (optional)
+void wifi_get_ps_mode(void);
 
-#endif // WIFI_MANAGER_H
+// Optional: Configures the maximum retry attempts for WiFi reconnection
+void set_wifi_retry_limit(int retries);
+
+#endif // WIFI_H
