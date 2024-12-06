@@ -11,7 +11,10 @@
 #define SGP30_CRC_8_POLY ((uint8_t) 0x31) /* CRC-8 generator polynomial */
 
 typedef enum {
-    SENSOR_EVENT_DISTANCE_NEW,
+    SENSOR_EVENT_NEW_MEASUREMENT,
+    SENSOR_IAQ_INITIALIZING,
+    SENSOR_IAQ_INITIALIZED,
+    SENSOR_GOT_BASELINE,
 } mox_event_id_t ;
 // SGP30 register write only addresses
 typedef enum {
@@ -30,6 +33,16 @@ typedef enum {
     SGP30_REG_MEASURE_RAW_SIGNALS = 0x2050, /* */
 } sgp30_register_rw_t;
 
+typedef struct {
+    uint16_t eCO2;
+    uint16_t TVOC;
+} sgp30_measurement_t;
+
+typedef struct {
+    sgp30_measurement_t baseline;
+    int64_t timestamp;
+} sgp30_baseline_t;
+
 ESP_EVENT_DECLARE_BASE(SENSOR_EVENTS);
 
 /**
@@ -44,7 +57,7 @@ ESP_EVENT_DECLARE_BASE(SENSOR_EVENTS);
  * @param dev_speed Communication speed for the I2C device.
  * @return Handle to the SGP30 device, or NULL if creation failed.
  */
-i2c_master_dev_handle_t sgp30_device_create(
+esp_err_t sgp30_device_create(
     i2c_master_bus_handle_t bus_handle,
     const uint16_t dev_addr,
     const uint32_t dev_speed);
@@ -77,18 +90,14 @@ esp_err_t sgp30_device_delete(i2c_master_dev_handle_t dev_handle);
  *     - ESP_FAIL: Communication with the sensor failed
  *     - ESP_ERR_INVALID_CRC: Received wrong chechsum
  */
-esp_err_t sgp30_init_air_quality(i2c_master_dev_handle_t dev_handle);
+esp_err_t sgp30_init_air_quality();
 
 /**
  * @brief Retrieve eCO2 and TVOC readings from the SGP30 sensor.
  *
  * This function communicates with the SGP30 sensor over I2C to obtain the current
- * temperature and humidity measurements.
- *
- * @param[in] dev_handle Handle to the I2C master device.
- * @param[in] reg Register to read from.
- * @param[out] data1 Pointer to a uint16_t where the eCO2 reading will be stored.
- * @param[out] data2 Pointer to a uint16_t where the TVOC reading will be stored.
+ * eCO2 and TVOC measurements.
+ * Then posts a SENSOR_EVENT_NEW_MEASUREMENT to the sgp30_event_loop
  *
  * @return
  *     - ESP_OK: Success
@@ -96,10 +105,7 @@ esp_err_t sgp30_init_air_quality(i2c_master_dev_handle_t dev_handle);
  *     - ESP_FAIL: Communication with the sensor failed
  *     - ESP_ERR_INVALID_CRC: Received wrong chechsum
  */
-esp_err_t sgp30_measure_air_quality(
-    i2c_master_dev_handle_t dev_handle,
-    uint16_t *data1,
-    uint16_t *data2);
+esp_err_t sgp30_measure_air_quality();
 
 /**
  * @brief Retrieve the ID from the SGP30 sensor.
@@ -116,5 +122,9 @@ esp_err_t sgp30_measure_air_quality(
  *     - ESP_ERR_INVALID_CRC: Received wrong chechsum
  */
 esp_err_t sgp30_get_id(i2c_master_dev_handle_t dev_handle, uint8_t *id);
+/**
+ * TODO DOCUMENTATION
+    */
+esp_err_t sgp30_get_baseline();
 
 #endif
