@@ -5,6 +5,7 @@
 #include "esp_event_base.h"
 #include "esp_err.h"
 #include "esp_log.h"
+#include "freertos/idf_additions.h"
 #include "portmacro.h"
 #include <stdint.h>
 #include <stdlib.h>
@@ -22,6 +23,8 @@ static esp_timer_handle_t g_h_baseline_12h_timer;
 static esp_timer_handle_t g_h_baseline_1h_timer;
 static esp_timer_handle_t g_h_initialization_timer;
 static esp_timer_handle_t g_h_measurement_timer;
+static SemaphoreHandle_t device_in_use_mutex;
+
 // This is a very inefficient
 static esp_err_t crc8_check(uint8_t *buffer, size_t size) {
     uint8_t crc = 0;
@@ -135,7 +138,7 @@ esp_err_t sgp30_delete() {
     return ESP_OK;
 }
 
-esp_err_t gp30_device_create(
+esp_err_t sgp30_device_create(
     i2c_master_bus_handle_t bus_handle,
     const uint16_t dev_addr,
     const uint32_t dev_speed)
@@ -153,6 +156,8 @@ esp_err_t gp30_device_create(
         i2c_master_bus_add_device(bus_handle, &dev_cfg, &dev_handle),
         TAG, "Could not add device to I2C bus"
     );
+
+    vSemaphoreCreateBinary(device_in_use_mutex);
 
     return ESP_OK;
 }
@@ -173,6 +178,10 @@ esp_err_t sgp30_init_air_quality()
     write_buffer[0] = write_addr & 0xFF; /* Mask should be unnecessary */
     write_buffer[1] = (write_addr >> 8) & 0xFF; /* Mask should be unnecessary */
 
+    // We need to make sure no two threads/processes attempt to interact with
+    // the device at the same time or in its calculation times.
+    xSemaphoreTake(device_in_use_mutex, portMAX_DELAY);
+
     ESP_RETURN_ON_ERROR(
         i2c_master_transmit(sgp30_dev_handle, write_buffer, 2, -1),
         TAG, "I2C init air quality failed"
@@ -180,6 +189,8 @@ esp_err_t sgp30_init_air_quality()
 
     // The sensor needs a max of 10 ms to respond to the I2C read header.
     vTaskDelay(pdMS_TO_TICKS(1));
+
+    xSemaphoreGive(device_in_use_mutex);
 
     ESP_RETURN_ON_ERROR(
         esp_event_post_to(
@@ -209,6 +220,10 @@ esp_err_t sgp30_measure_air_quality()
     /* Therefore we need to save 48 bits for the received data */
     uint8_t bytes_read[6];
 
+    // We need to make sure no two threads/processes attempt to interact with
+    // the device at the same time or in its calculation times.
+    xSemaphoreTake(device_in_use_mutex, portMAX_DELAY);
+
     ESP_RETURN_ON_ERROR(
         i2c_master_transmit(sgp30_dev_handle, write_buffer, 2, -1),
         TAG, "I2C get serial id write failed"
@@ -221,6 +236,8 @@ esp_err_t sgp30_measure_air_quality()
         i2c_master_receive(sgp30_dev_handle, bytes_read, 6, -1),
         TAG, "I2C get serial id read failed"
     );
+
+    xSemaphoreGive(device_in_use_mutex);
 
     ESP_RETURN_ON_ERROR(
         crc8_check(bytes_read, 6),
@@ -261,6 +278,8 @@ esp_err_t sgp30_get_baseline()
     /* Therefore we need to save 48 bits for the received data */
     uint8_t bytes_read[6];
 
+    xSemaphoreTake(device_in_use_mutex, portMAX_DELAY);
+
     ESP_RETURN_ON_ERROR(
         i2c_master_transmit(sgp30_dev_handle, write_buffer, 2, -1),
         TAG, "I2C get serial id write failed"
@@ -273,6 +292,8 @@ esp_err_t sgp30_get_baseline()
         i2c_master_receive(sgp30_dev_handle, bytes_read, 9, -1),
         TAG, "I2C get serial id read failed"
     );
+
+    xSemaphoreGive(device_in_use_mutex);
 
     ESP_RETURN_ON_ERROR(
         crc8_check(bytes_read, 6),
@@ -314,6 +335,8 @@ esp_err_t sgp30_get_id(i2c_master_dev_handle_t dev_handle, uint8_t *id)
     /* Therefore we need to save 72 bits for the received data */
     uint8_t bytes_read[9];
 
+    xSemaphoreTake(device_in_use_mutex, portMAX_DELAY);
+
     ESP_RETURN_ON_ERROR(
         i2c_master_transmit(dev_handle, write_buffer, 2, -1),
         TAG, "I2C get serial id write failed"
@@ -326,6 +349,8 @@ esp_err_t sgp30_get_id(i2c_master_dev_handle_t dev_handle, uint8_t *id)
         i2c_master_receive(dev_handle, bytes_read, 9, -1),
         TAG, "I2C get serial id read failed"
     );
+
+    xSemaphoreGive(device_in_use_mutex);
 
     ESP_RETURN_ON_ERROR(
         crc8_check(bytes_read, 9),
