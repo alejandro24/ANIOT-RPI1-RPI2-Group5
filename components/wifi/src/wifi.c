@@ -10,11 +10,11 @@ static const char *TAG = "WIFI";
 // WiFi configuration (using WPA2)
 wifi_config_t wifi_config = {
     .sta = {
-        .ssid = CONFIG_ESP_WIFI_SSID,  // Defined in menuconfig
-        .password = CONFIG_ESP_WIFI_PASSWORD,  // Defined in menuconfig
-        .authmode = WIFI_AUTH_WPA2_PSK,
-        .pmf_cfg = { 
-            .required = false, 
+        .ssid = CONFIG_ESP_WIFI_SSID,
+        .password = CONFIG_ESP_WIFI_PASSWORD,
+        .threshold.authmode = WIFI_AUTH_WPA2_PSK,  // Cambia authmode a threshold.authmode
+        .pmf_cfg = {
+            .required = false,
         },
     },
 };
