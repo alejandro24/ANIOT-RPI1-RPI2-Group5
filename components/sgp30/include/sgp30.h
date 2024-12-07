@@ -77,7 +77,14 @@ esp_err_t sgp30_device_create(
  *     - ESP_FAIL: Failed to delete the device
  */
 esp_err_t sgp30_device_delete(i2c_master_dev_handle_t dev_handle);
-
+/**
+ * UNDOCUMENTED
+ */
+esp_err_t sgp30_init(esp_event_loop_handle_t loop);
+/**
+ * UNDOCUMENTED
+ */
+esp_err_t sgp30_start_measuring();
 /**
  * @brief Initiates the measurement capabilities of the SGP30 device.
  *

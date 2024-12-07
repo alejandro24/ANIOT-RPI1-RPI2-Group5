@@ -13,6 +13,8 @@
 
 ESP_EVENT_DEFINE_BASE(SENSOR_EVENTS);
 
+#define SGP30_MEASURING_INTERVAL 10000000
+
 static char* TAG = "SGP30";
 static esp_event_loop_handle_t sgp30_event_loop;
 static i2c_master_dev_handle_t sgp30_dev_handle;
@@ -70,7 +72,7 @@ static uint8_t crc8_gen(uint8_t *buffer, size_t size) {
 }
 static void sgp30_get_baseline_callback(void* args) {
     ESP_ERROR_CHECK(sgp30_get_baseline());
-    esp_timer_start_periodic(g_h_baseline_1h_timer, 1 * 60 * 60 * 1000 * 1000);
+    esp_timer_start_periodic(g_h_baseline_1h_timer, 3600000000);
 }
 static void sgp30_update_baseline_callback(void* args) {
     ESP_ERROR_CHECK(sgp30_get_baseline());
@@ -87,6 +89,10 @@ static void sgp30_signal_initialized_callback(void* args) {
             0,
             portMAX_DELAY)
     );
+}
+
+static void sgp30_measurement_callback(void* args) {
+    ESP_ERROR_CHECK(sgp30_measure_air_quality());
 }
 
 esp_err_t sgp30_init(esp_event_loop_handle_t loop) {
@@ -129,6 +135,19 @@ esp_err_t sgp30_init(esp_event_loop_handle_t loop) {
         TAG, "Could not initiate init timer"
     );
 
+    esp_timer_create_args_t measuring_timer_args = {
+        .name = "measuring_timer",
+        .callback = sgp30_measurement_callback,
+    };
+
+    ESP_RETURN_ON_ERROR(
+        esp_timer_create(
+            &measuring_timer_args,
+            &g_h_measurement_timer
+        ),
+        TAG, "Could not initiate measurement timer"
+    );
+
     return ESP_OK;
 }
 
@@ -165,6 +184,18 @@ esp_err_t sgp30_device_create(
 esp_err_t sgp30_device_delete(i2c_master_dev_handle_t dev_handle)
 {
     return i2c_master_bus_rm_device(dev_handle);
+}
+
+esp_err_t sgp30_start_measuring()
+{
+    ESP_RETURN_ON_ERROR(
+        esp_timer_start_periodic(
+            g_h_measurement_timer,
+            SGP30_MEASURING_INTERVAL
+        ),
+        TAG, "Could not start measurement_timer"
+    );
+    return ESP_OK;
 }
 
 esp_err_t sgp30_init_air_quality()
