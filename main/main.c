@@ -5,6 +5,7 @@
 #include "esp_event_base.h"
 #include "sgp30.h"
 #include <stdint.h>
+#include <string.h>
 
 static char* TAG = "MAIN";
 i2c_master_bus_handle_t bus_handle;
@@ -72,6 +73,15 @@ void app_main(void) {
     };
 
     esp_event_loop_create(&sgp30_event_loop_args, &sgp30_event_loop_handle);
+    ESP_ERROR_CHECK(
+        esp_event_handler_register_with(
+            sgp30_event_loop_handle,
+            SENSOR_EVENTS,
+            ESP_EVENT_ANY_ID,
+            sgp30_event_handler,
+            NULL
+        )
+    );
 
     sgp30_init(sgp30_event_loop_handle);
     // Inicializa la gestión Wi-Fi
