@@ -19,37 +19,37 @@ wifi_config_t wifi_config = {
     },
 };
 
-// WiFi event handler to manage connection and reconnection
+// wifi_event_handler: Aquí es donde manejas la reconexión WiFi
 static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
     static int retry_count = 0;
     
     switch (event_id) {
         case WIFI_EVENT_STA_START:
-            ESP_LOGI(TAG, "Connecting to WiFi...");
-            esp_wifi_connect();  // Initiates WiFi connection
+            ESP_LOGI(TAG, "Conectando a WiFi...");
+            esp_wifi_connect();  // Intenta la conexión
             break;
         case WIFI_EVENT_STA_CONNECTED:
-            retry_count = 0;  // Reset retry count upon successful connection
-            ESP_LOGI(TAG, "Successfully connected to WiFi");
-
-            // Enable Power Save Mode after connection
-            ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_MIN_MODEM));  // Set power save mode to minimum
-            ESP_LOGI(TAG, "WiFi Power Save Mode enabled");
+            retry_count = 0;  // Reseteamos el contador de reintentos
+            ESP_LOGI(TAG, "Conectado exitosamente al WiFi");
             break;
         case WIFI_EVENT_STA_DISCONNECTED:
-            ESP_LOGI(TAG, "WiFi disconnected, attempting reconnection...");
-            if (retry_count < 5) {  // Try reconnecting up to 5 times
+            ESP_LOGI(TAG, "Desconectado del WiFi, reintentando...");
+            if (retry_count < 5) {
+                int delay = (1 << retry_count) * 1000;  // Backoff exponencial (1s, 2s, 4s...)
+                ESP_LOGI(TAG, "Reintentando en %d ms...", delay);
+                vTaskDelay(pdMS_TO_TICKS(delay));  // Esperar antes de intentar nuevamente
                 esp_wifi_connect();
                 retry_count++;
             } else {
-                ESP_LOGE(TAG, "Failed to connect to WiFi after 5 attempts");
-                // Here, you can trigger some other action if the connection fails (e.g., LED blink, reset, etc.)
+                ESP_LOGE(TAG, "No se pudo conectar al WiFi después de varios intentos.");
+                // Acciones adicionales si fallan todos los intentos
             }
             break;
         default:
             break;
     }
 }
+
 
 void wifi_init_sta(void) {
     // Initialize WiFi stack and set the WiFi mode to STA (Station mode)

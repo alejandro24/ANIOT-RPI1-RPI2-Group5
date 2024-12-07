@@ -33,4 +33,13 @@ void app_main(void) {
         vTaskDelay(pdMS_TO_TICKS(1000));  // delay
     }
     // *********************************************************************
+    //**************SNTP Y TOLERANCIA A FALLOS********************************************** */
+     ESP_LOGI(TAG, "Initializing SNTP...");
+    sntp_sync_initialize("pool.ntp.org");
+
+    char time_buffer[64];
+    sntp_sync_get_time(time_buffer, sizeof(time_buffer));
+    ESP_LOGI(TAG, "Current time: %s", time_buffer);
+       ESP_ERROR_CHECK(example_connect()); 
+    //******************************************************************** */
 }
