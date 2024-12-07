@@ -1,6 +1,8 @@
 //#include "wifi_manager.h"
 #include "driver/i2c_types.h"
 #include "esp_log.h"
+#include "wifi.h"
+
 #include "esp_event.h"
 #include "esp_event_base.h"
 #include "sgp30.h"
@@ -88,5 +90,14 @@ void app_main(void) {
     //wifi_manager_init();
 
     // Conectar al Wi-Fi con los parámetros deseados
-    //wifi_manager_connect("MIOT", "MIOT_WIFI_2024!");
+    
+    
+     ESP_LOGI(TAG, "Initializing WiFi...");
+    wifi_init_sta();  // Call your WiFi initialization function
+
+ //wifi_manager_connect("MiFibra-F4A8", "7tcHKtYk!");
+
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(1000));  // Wait a second to avoid a busy loop
+}
 }

@@ -4,6 +4,8 @@
 #include <esp_event.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "nvs_flash.h"
+
 
 static const char *TAG = "WIFI";
 
@@ -12,9 +14,10 @@ wifi_config_t wifi_config = {
     .sta = {
         .ssid = CONFIG_ESP_WIFI_SSID,
         .password = CONFIG_ESP_WIFI_PASSWORD,
-        .threshold.authmode = WIFI_AUTH_WPA2_PSK,  // Cambia authmode a threshold.authmode
+        .threshold.authmode = WIFI_AUTH_WPA2_PSK,
         .pmf_cfg = {
-            .required = false,
+            .capable = true,
+            .required = false
         },
     },
 };
