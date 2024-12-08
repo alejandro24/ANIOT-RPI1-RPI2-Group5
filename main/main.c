@@ -9,7 +9,6 @@
 #include <stdint.h>
 #include <string.h>
 #include <nvs_flash.h>
-
 static char* TAG = "MAIN";
 i2c_master_bus_handle_t bus_handle;
 i2c_master_dev_handle_t sgp30;
@@ -37,6 +36,7 @@ static void sgp30_event_handler(
 
         case SENSOR_IAQ_INITIALIZED:
             ESP_LOGI(TAG, "SGP30 Initialized.");
+            sgp30_start_measuring();
             break;
         case SENSOR_GOT_BASELINE:
             new_baseline = *((sgp30_baseline_t*) event_data);
@@ -99,6 +99,7 @@ void app_main(void) {
     );
 
     sgp30_init(sgp30_event_loop_handle);
+    sgp30_init_air_quality();
     // Inicializa la gestión Wi-Fi
     //wifi_manager_init();
 
