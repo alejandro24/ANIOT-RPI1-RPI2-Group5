@@ -5,20 +5,24 @@
 #include "esp_event_base.h"
 #include "esp_err.h"
 #include "esp_log.h"
+//#include "nvs_flash.h"
+#include "esp_sntp.h"
 #include "freertos/idf_additions.h"
+#include "freertos/projdefs.h"
 #include "portmacro.h"
+#include <reent.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <time.h>
 #include "sgp30.h"
 
 ESP_EVENT_DEFINE_BASE(SENSOR_EVENTS);
 
-#define SGP30_MEASURING_INTERVAL 988000
+#define SGP30_MEASURING_INTERVAL 1000000
 
 static char* TAG = "SGP30";
 static esp_event_loop_handle_t sgp30_event_loop;
 static i2c_master_dev_handle_t sgp30_dev_handle;
-static uint32_t g_baseline;
 static bool g_baseline_is_set = false;
 static bool sgp30_is_initialized = false;
 static esp_timer_handle_t g_h_baseline_12h_timer;
@@ -26,6 +30,8 @@ static esp_timer_handle_t g_h_baseline_1h_timer;
 static esp_timer_handle_t g_h_initialization_timer;
 static esp_timer_handle_t g_h_measurement_timer;
 static SemaphoreHandle_t device_in_use_mutex;
+
+static sgp30_measurement_t baseline;
 
 // This is a very inefficient
 void uint8_swap(uint8_t *a, uint8_t *b)
@@ -240,6 +246,12 @@ esp_err_t sgp30_init_air_quality()
             portMAX_DELAY),
         TAG, "Could not post INIT_AIR_QUALITY_EVENT"
     );
+    for (int i =0; i < 15; i++) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        sgp30_measure_air_quality();
+    }
+    ESP_LOGI(TAG, "Initialization loop done");
+
     esp_timer_start_once(g_h_initialization_timer, 1 * 1000 * 1000);
 
     return ESP_OK;
@@ -269,7 +281,7 @@ esp_err_t sgp30_measure_air_quality()
     );
 
     // The sensor needs a max of 12 ms to respond to the I2C read header.
-    vTaskDelay(pdMS_TO_TICKS(12));
+    vTaskDelay(pdMS_TO_TICKS(13));
 
     ESP_RETURN_ON_ERROR(
         i2c_master_receive(sgp30_dev_handle, bytes_read, 6, -1),
@@ -310,6 +322,40 @@ esp_err_t sgp30_measure_air_quality()
 
     return ESP_OK;
 }
+esp_err_t sgp30_set_baseline()
+{
+    ESP_LOGI(TAG, "Setting baseline");
+    // This function will return an invalid measurement if device is
+    // setting a temporal baseline i.e. 15 secs after first boot.
+    sgp30_register_rw_t write_addr = SGP30_REG_MEASURE_AIR_QUALITY;
+    uint8_t write_buffer[8];
+    write_buffer[0] = (write_addr >> 8) & 0xFF; /* Mask should be unnecessary */
+    write_buffer[1] = write_addr & 0xFF; /* Mask should be unnecessary */
+
+    /* We return 2 words (16 bits/w) each followed by an 8 bit CRC checksum */
+    /* Therefore we need to save 48 bits for the received data */
+    write_buffer[2] = baseline.eCO2 << 8;
+    write_buffer[3] = baseline.eCO2;
+    write_buffer[4] = crc8_gen(write_buffer + 2, 2);
+    write_buffer[5] = baseline.TVOC << 8;
+    write_buffer[6] = baseline.TVOC;
+    write_buffer[7] = crc8_gen(write_buffer + 5, 2);
+
+    // We need to make sure no two threads/processes attempt to interact with
+    // the device at the same time or in its calculation times.
+    xSemaphoreTake(device_in_use_mutex, portMAX_DELAY);
+
+    ESP_RETURN_ON_ERROR(
+        i2c_master_transmit(sgp30_dev_handle, write_buffer, 8, -1),
+        TAG, "I2C get serial id write failed"
+    );
+
+    // The sensor needs a max of 12 ms to respond to the I2C read header.
+    vTaskDelay(pdMS_TO_TICKS(10));
+    xSemaphoreGive(device_in_use_mutex);
+
+    return ESP_OK;
+}
 
 esp_err_t sgp30_get_baseline()
 {
@@ -340,29 +386,36 @@ esp_err_t sgp30_get_baseline()
     xSemaphoreGive(device_in_use_mutex);
 
     ESP_RETURN_ON_ERROR(
-        crc8_check(bytes_read, 6),
-        TAG, "I2C get serial id CRC failed"
+        crc8_check(bytes_read, 3),
+        TAG, "I2C get eCO2 CRC failed"
     );
 
-    sgp30_baseline_t *new_baseline = malloc(sizeof(sgp30_baseline_t));
+    ESP_RETURN_ON_ERROR(
+        crc8_check(bytes_read + 3, 3),
+        TAG, "I2C get TVOC CRC failed"
+    );
+
+    time_t now;
+    time(&now);
+
     // Copy the read ID to the provided id pointer
-    new_baseline->baseline.eCO2 = (uint16_t) (bytes_read[1] << 8) | bytes_read[0];
+    baseline.eCO2 = (uint16_t) (bytes_read[0] << 8) | bytes_read[1];
+
     // bytes_read[2] is CRC for the first word, we can ignore it.
 
-    new_baseline->baseline.TVOC = (uint16_t) (bytes_read[4] << 8) | bytes_read[3];
+    baseline.TVOC = (uint16_t) (bytes_read[3] << 8) | bytes_read[4];
     // bytes_read[5] is CRC for the second word, we can ignore it.
-    new_baseline->timestamp = 0; // [TODO] need to get the time!!
 
     ESP_RETURN_ON_ERROR(
         esp_event_post_to(
             sgp30_event_loop,
             SENSOR_EVENTS,
             SENSOR_GOT_BASELINE,
-            new_baseline,
-            sizeof(sgp30_baseline_t),
+            &baseline,
+            sizeof(sgp30_measurement_t),
             portMAX_DELAY
         ),
-        TAG, "Could not post new measurement"
+        TAG, "Could not post new baseline event"
     );
 
     return ESP_OK;
