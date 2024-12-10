@@ -1,3 +1,4 @@
+#include "driver/i2c_master.h"
 #include "driver/i2c_types.h"
 #include "esp_check.h"
 #include "esp_event.h"
@@ -5,8 +6,6 @@
 #include "esp_event_base.h"
 #include "esp_err.h"
 #include "esp_log.h"
-//#include "nvs_flash.h"
-#include "esp_sntp.h"
 #include "freertos/idf_additions.h"
 #include "freertos/projdefs.h"
 #include "portmacro.h"
@@ -30,19 +29,12 @@ static esp_timer_handle_t g_h_baseline_1h_timer;
 static esp_timer_handle_t g_h_initialization_timer;
 static esp_timer_handle_t g_h_measurement_timer;
 static SemaphoreHandle_t device_in_use_mutex;
+static uint16_t id[3];
 
 static sgp30_measurement_t baseline;
 
-// This is a very inefficient
-void uint8_swap(uint8_t *a, uint8_t *b)
-{
-    *a = *a ^ *b;
-    *b = *a ^ *b;
-    *a = *a ^ *b;
-}
-
 static esp_err_t crc8_check(uint8_t *buffer, size_t size) {
-    uint8_t crc = 0xFF;
+    uint8_t crc = SGP30_CRC_8_INIT;
 
     for (int i = 0; i < size; i++) {
         // We XOR the first/next bit into the crc
@@ -67,7 +59,7 @@ static esp_err_t crc8_check(uint8_t *buffer, size_t size) {
 }
 
 static uint8_t crc8_gen(uint8_t *buffer, size_t size) {
-    uint8_t crc = 0xFF;
+    uint8_t crc = SGP30_CRC_8_INIT;
 
     for (int i = 0; i < size; i++) {
         crc ^= buffer[i];
@@ -82,6 +74,99 @@ static uint8_t crc8_gen(uint8_t *buffer, size_t size) {
 
     return crc;
 }
+
+static esp_err_t sgp30_command_w(
+    i2c_master_dev_handle_t dev_handle,
+    sgp30_register_rw_t command,
+    uint8_t write_delay,
+    uint16_t *msg,
+    size_t msg_len)
+{
+    size_t msg_buffer_len = 2 + 3 * msg_len;
+    uint8_t msg_buffer[2 + msg_buffer_len];
+    msg_buffer[0] = (command >> 8) & 0xFF;
+    msg_buffer[1] = command  & 0xFF;
+
+    for (int i = 0; i < msg_len; i++) {
+        msg_buffer[3 * i + 2] = (msg[i] >> 8) & 0xFF;
+        msg_buffer[3 * i + 3] = msg[i] & 0xFF;
+        msg_buffer[3 * i + 4] = crc8_gen(msg_buffer + 2 + 3 * i, 2);
+    }
+
+    xSemaphoreTake(device_in_use_mutex, portMAX_DELAY);
+
+    esp_err_t got_sent = i2c_master_transmit(dev_handle, msg_buffer, msg_buffer_len, -1);
+    if (got_sent != ESP_OK) {
+        xSemaphoreGive(device_in_use_mutex);
+        ESP_LOGE(TAG, "Could not write measure_air_quality");
+        return got_sent;
+    }
+    // The sensor needs a max of 12 ms to respond to the I2C read header.
+    vTaskDelay(pdMS_TO_TICKS(write_delay));
+
+    xSemaphoreGive(device_in_use_mutex);
+
+
+    return ESP_OK;
+}
+
+static esp_err_t sgp30_command_rw(
+    i2c_master_dev_handle_t dev_handle,
+    sgp30_register_rw_t command,
+    uint8_t write_delay,
+    uint8_t read_delay,
+    uint16_t *response,
+    size_t response_len)
+{
+
+    uint8_t command_buffer[2];
+    command_buffer[0] = (command >> 8) & 0xFF; /* Mask should be unnecessary */
+    command_buffer[1] = command & 0xFF; /* Mask should be unnecessary */
+
+    // We need 2 bytes for each word and an extra one for the CRC
+    size_t response_buffer_len = response_len * 3;
+    uint8_t response_buffer[response_buffer_len];
+
+    /* We return 2 words (16 bits/w) each followed by an 8 bit CRC checksum */
+
+    // We need to make sure no two threads/processes attempt to interact with
+    // the device at the same time or in its calculation times.
+    xSemaphoreTake(device_in_use_mutex, portMAX_DELAY);
+
+    esp_err_t got_sent = i2c_master_transmit(dev_handle, command_buffer, 2, -1);
+    if (got_sent != ESP_OK) {
+        xSemaphoreGive(device_in_use_mutex);
+        ESP_LOGE(TAG, "Could not write measure_air_quality");
+        return got_sent;
+    }
+    // The sensor needs a max of 12 ms to respond to the I2C read header.
+    vTaskDelay(pdMS_TO_TICKS(write_delay));
+
+    esp_err_t got_received = i2c_master_receive(dev_handle, response_buffer, response_buffer_len, -1);
+    if (got_received != ESP_OK) {
+        xSemaphoreGive(device_in_use_mutex);
+        ESP_LOGE(TAG, "Could not write measure_air_quality");
+        return got_received;
+    }
+
+    xSemaphoreGive(device_in_use_mutex);
+
+    // Check received CRC's
+    for (int i = 0; i < response_len; i++) {
+        ESP_RETURN_ON_ERROR(
+            crc8_check(response_buffer + 3 * i, 3),
+            TAG, "I2C get %d item CRC failed", i
+        );
+    }
+
+    // Store the output into a uint16
+    for (int i = 0; i < response_len; i++) {
+        response[i] = (uint16_t) (response_buffer[i * 3] << 8) | response_buffer[3 * i + 1];
+    }
+
+    return ESP_OK;
+}
+
 static void sgp30_get_baseline_callback(void* args) {
     ESP_ERROR_CHECK(sgp30_get_baseline());
     esp_timer_start_periodic(g_h_baseline_1h_timer, 3600000000);
@@ -90,7 +175,6 @@ static void sgp30_update_baseline_callback(void* args) {
     ESP_ERROR_CHECK(sgp30_get_baseline());
 }
 static void sgp30_signal_initialized_callback(void* args) {
-    // What if we cant post it for some reason? how do i handle this?
     sgp30_is_initialized = true;
     ESP_ERROR_CHECK(
         esp_event_post_to(
@@ -101,10 +185,11 @@ static void sgp30_signal_initialized_callback(void* args) {
             0,
             portMAX_DELAY)
     );
+    // What if we cant post it for some reason? how do i handle this?
 }
 
 static void sgp30_measurement_callback(void* args) {
-    ESP_ERROR_CHECK(sgp30_measure_air_quality());
+    ESP_ERROR_CHECK_WITHOUT_ABORT(sgp30_measure_air_quality());
 }
 
 esp_err_t sgp30_init(esp_event_loop_handle_t loop) {
@@ -160,6 +245,28 @@ esp_err_t sgp30_init(esp_event_loop_handle_t loop) {
         TAG, "Could not initiate measurement timer"
     );
 
+    ESP_RETURN_ON_ERROR(
+        sgp30_init_air_quality(),
+        TAG, "Could not send initiation command"
+    );
+
+    if (g_baseline_is_set) {
+        sgp30_set_baseline();
+    } else {
+
+        for (int i =0; i < 15; i++) {
+            vTaskDelay(pdMS_TO_TICKS(998));
+            sgp30_measure_air_quality();
+        }
+        ESP_LOGI(TAG, "Initialization loop done");
+
+        sgp30_get_baseline();
+        sgp30_set_baseline();
+    }
+
+    esp_timer_start_once(g_h_initialization_timer, 2 * 1000 * 1000);
+
+
     return ESP_OK;
 }
 
@@ -193,6 +300,7 @@ esp_err_t sgp30_device_create(
 
 esp_err_t sgp30_device_delete(i2c_master_dev_handle_t dev_handle)
 {
+    vSemaphoreDelete(device_in_use_mutex);
     return i2c_master_bus_rm_device(dev_handle);
 }
 
@@ -215,26 +323,15 @@ esp_err_t sgp30_init_air_quality()
     // We should check nvs for a baseline and if is set we retrieve it.
     // If it is not set we set up a timer for 12h to read the baseline
     // and store it in nvs.
-    sgp30_register_rw_t write_addr = SGP30_REG_INIT_AIR_QUALITY;
-    uint8_t write_buffer[2];
-    write_buffer[1] = write_addr & 0xFF; /* Mask should be unnecessary */
-    write_buffer[0] = (write_addr >> 8) & 0xFF; /* Mask should be unnecessary */
-
-    // We need to make sure no two threads/processes attempt to interact with
-    // the device at the same time or in its calculation times.
-    xSemaphoreTake(device_in_use_mutex, portMAX_DELAY);
-
-    ESP_LOGI(TAG, "Semaphore Taken");
     ESP_RETURN_ON_ERROR(
-        i2c_master_transmit(sgp30_dev_handle, write_buffer, 2, -1),
-        TAG, "I2C init air quality failed"
+        sgp30_command_w(
+            sgp30_dev_handle,
+            SGP30_REG_INIT_AIR_QUALITY,
+            12,
+            NULL,
+            0),
+        TAG, "Could not send INIT_AIR_QUALITY command"
     );
-    ESP_LOGI(TAG, "Transmit sent");
-
-    // The sensor needs a max of 10 ms to respond to the I2C read header.
-    vTaskDelay(pdMS_TO_TICKS(12));
-
-    xSemaphoreGive(device_in_use_mutex);
 
     ESP_RETURN_ON_ERROR(
         esp_event_post_to(
@@ -246,74 +343,41 @@ esp_err_t sgp30_init_air_quality()
             portMAX_DELAY),
         TAG, "Could not post INIT_AIR_QUALITY_EVENT"
     );
-    for (int i =0; i < 15; i++) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        sgp30_measure_air_quality();
-    }
-    ESP_LOGI(TAG, "Initialization loop done");
-
-    esp_timer_start_once(g_h_initialization_timer, 1 * 1000 * 1000);
 
     return ESP_OK;
 }
 
 esp_err_t sgp30_measure_air_quality()
 {
-    ESP_LOGI(TAG, "Attempting to take a measurement");
     // This function will return an invalid measurement if device is
     // setting a temporal baseline i.e. 15 secs after first boot.
-    sgp30_register_rw_t write_addr = SGP30_REG_MEASURE_AIR_QUALITY;
-    uint8_t write_buffer[2];
-    write_buffer[0] = (write_addr >> 8) & 0xFF; /* Mask should be unnecessary */
-    write_buffer[1] = write_addr & 0xFF; /* Mask should be unnecessary */
-
-    /* We return 2 words (16 bits/w) each followed by an 8 bit CRC checksum */
-    /* Therefore we need to save 48 bits for the received data */
-    uint8_t bytes_read[6];
+    uint16_t response_buffer[2];
 
     // We need to make sure no two threads/processes attempt to interact with
     // the device at the same time or in its calculation times.
-    xSemaphoreTake(device_in_use_mutex, portMAX_DELAY);
 
     ESP_RETURN_ON_ERROR(
-        i2c_master_transmit(sgp30_dev_handle, write_buffer, 2, -1),
-        TAG, "I2C get serial id write failed"
+        sgp30_command_rw(
+            sgp30_dev_handle,
+            SGP30_REG_MEASURE_AIR_QUALITY,
+            13,
+            13,
+            response_buffer,
+            2),
+        TAG, "Could not execute MEASURE_AIR_QUALITY command"
     );
 
-    // The sensor needs a max of 12 ms to respond to the I2C read header.
-    vTaskDelay(pdMS_TO_TICKS(13));
-
-    ESP_RETURN_ON_ERROR(
-        i2c_master_receive(sgp30_dev_handle, bytes_read, 6, -1),
-        TAG, "I2C get serial id read failed"
-    );
-
-    xSemaphoreGive(device_in_use_mutex);
-
-    ESP_RETURN_ON_ERROR(
-        crc8_check(bytes_read, 3),
-        TAG, "I2C get eCO2 CRC failed"
-    );
-
-    ESP_RETURN_ON_ERROR(
-        crc8_check(bytes_read + 3, 3),
-        TAG, "I2C get TVOC CRC failed"
-    );
-
-    sgp30_measurement_t *new_measurement = malloc(sizeof(sgp30_measurement_t));
-    // Copy the read ID to the provided id pointer
-    new_measurement->eCO2 = (uint16_t) (bytes_read[0] << 8) | bytes_read[1];
-    // bytes_read[2] is CRC for the first word, we can ignore it.
-
-    new_measurement->TVOC = (uint16_t) (bytes_read[3] << 8) | bytes_read[4];
-    // bytes_read[5] is CRC for the second word, we can ignore it.
+    // Event data will be copied and managed by the event system, it can be local here
+    sgp30_measurement_t new_measurement;
+    new_measurement.eCO2 = response_buffer[0];
+    new_measurement.TVOC = response_buffer[1];
 
     ESP_RETURN_ON_ERROR(
         esp_event_post_to(
             sgp30_event_loop,
             SENSOR_EVENTS,
             SENSOR_EVENT_NEW_MEASUREMENT,
-            new_measurement,
+            &new_measurement,
             sizeof(sgp30_measurement_t),
             portMAX_DELAY
         ),
@@ -322,88 +386,48 @@ esp_err_t sgp30_measure_air_quality()
 
     return ESP_OK;
 }
+
 esp_err_t sgp30_set_baseline()
 {
     ESP_LOGI(TAG, "Setting baseline");
-    // This function will return an invalid measurement if device is
-    // setting a temporal baseline i.e. 15 secs after first boot.
-    sgp30_register_rw_t write_addr = SGP30_REG_MEASURE_AIR_QUALITY;
-    uint8_t write_buffer[8];
-    write_buffer[0] = (write_addr >> 8) & 0xFF; /* Mask should be unnecessary */
-    write_buffer[1] = write_addr & 0xFF; /* Mask should be unnecessary */
-
-    /* We return 2 words (16 bits/w) each followed by an 8 bit CRC checksum */
-    /* Therefore we need to save 48 bits for the received data */
-    write_buffer[2] = baseline.eCO2 << 8;
-    write_buffer[3] = baseline.eCO2;
-    write_buffer[4] = crc8_gen(write_buffer + 2, 2);
-    write_buffer[5] = baseline.TVOC << 8;
-    write_buffer[6] = baseline.TVOC;
-    write_buffer[7] = crc8_gen(write_buffer + 5, 2);
-
-    // We need to make sure no two threads/processes attempt to interact with
-    // the device at the same time or in its calculation times.
-    xSemaphoreTake(device_in_use_mutex, portMAX_DELAY);
+    uint16_t msg_buffer[2];
+    msg_buffer[0] = baseline.eCO2;
+    msg_buffer[1] = baseline.TVOC;
 
     ESP_RETURN_ON_ERROR(
-        i2c_master_transmit(sgp30_dev_handle, write_buffer, 8, -1),
-        TAG, "I2C get serial id write failed"
+        sgp30_command_w(
+            sgp30_dev_handle,
+            SGP30_REG_SET_BASELINE,
+            13,
+            msg_buffer,
+            2),
+        TAG, "Could not send SET_BASELINE command"
     );
-
-    // The sensor needs a max of 12 ms to respond to the I2C read header.
-    vTaskDelay(pdMS_TO_TICKS(10));
-    xSemaphoreGive(device_in_use_mutex);
 
     return ESP_OK;
 }
 
 esp_err_t sgp30_get_baseline()
 {
-    sgp30_register_rw_t write_addr = SGP30_REG_GET_BASELINE;
-    uint8_t write_buffer[2];
-    write_buffer[1] = write_addr & 0xFF; /* Mask should be unnecessary */
-    write_buffer[0] = (write_addr >> 8) & 0xFF; /* Mask should be unnecessary */
-
     /* We return 2 words (16 bits/w) each followed by an 8 bit CRC checksum */
     /* Therefore we need to save 48 bits for the received data */
-    uint8_t bytes_read[6];
-
-    xSemaphoreTake(device_in_use_mutex, portMAX_DELAY);
+    uint16_t response[2];
 
     ESP_RETURN_ON_ERROR(
-        i2c_master_transmit(sgp30_dev_handle, write_buffer, 2, -1),
-        TAG, "I2C get serial id write failed"
+        sgp30_command_rw(
+            sgp30_dev_handle,
+            SGP30_REG_GET_BASELINE,
+            12,
+            12, response, 2),
+        TAG, "Could not execute GET_BASELINE command"
     );
-
-    // The sensor needs 10 ms to respond to the I2C read header.
-    vTaskDelay(pdMS_TO_TICKS(10));
-
-    ESP_RETURN_ON_ERROR(
-        i2c_master_receive(sgp30_dev_handle, bytes_read, 9, -1),
-        TAG, "I2C get serial id read failed"
-    );
-
-    xSemaphoreGive(device_in_use_mutex);
-
-    ESP_RETURN_ON_ERROR(
-        crc8_check(bytes_read, 3),
-        TAG, "I2C get eCO2 CRC failed"
-    );
-
-    ESP_RETURN_ON_ERROR(
-        crc8_check(bytes_read + 3, 3),
-        TAG, "I2C get TVOC CRC failed"
-    );
-
-    time_t now;
-    time(&now);
 
     // Copy the read ID to the provided id pointer
-    baseline.eCO2 = (uint16_t) (bytes_read[0] << 8) | bytes_read[1];
+    baseline.eCO2 = response[0];
 
     // bytes_read[2] is CRC for the first word, we can ignore it.
 
-    baseline.TVOC = (uint16_t) (bytes_read[3] << 8) | bytes_read[4];
+    baseline.TVOC = response[1];
     // bytes_read[5] is CRC for the second word, we can ignore it.
 
     ESP_RETURN_ON_ERROR(
@@ -417,55 +441,33 @@ esp_err_t sgp30_get_baseline()
         ),
         TAG, "Could not post new baseline event"
     );
+    ESP_LOGI(TAG, "Got new baseline from device");
 
     return ESP_OK;
 }
 
-esp_err_t sgp30_get_id(i2c_master_dev_handle_t dev_handle, uint8_t *id)
+esp_err_t sgp30_get_id()
 {
-    sgp30_register_rw_t write_addr = SGP30_REG_GET_SERIAL_ID;
-    uint8_t write_buffer[2];
-    write_buffer[1] = write_addr & 0xFF; /* Mask should be unnecessary */
-    write_buffer[0] = (write_addr >> 8) & 0xFF; /* Mask should be unnecessary */
-
-    /* We return 3 words (16 bits/w) each followed by an 8 bit CRC checksum */
-    /* Therefore we need to save 72 bits for the received data */
-    uint8_t bytes_read[9];
-
-    xSemaphoreTake(device_in_use_mutex, portMAX_DELAY);
-
+    uint16_t response[3];
     ESP_RETURN_ON_ERROR(
-        i2c_master_transmit(dev_handle, write_buffer, 2, -1),
+        sgp30_command_rw(
+            sgp30_dev_handle,
+            SGP30_REG_GET_SERIAL_ID,
+            12,
+            12,
+            response,
+            3
+        ),
         TAG, "I2C get serial id write failed"
     );
 
     // The sensor needs .5 ms to respond to the I2C read header.
     vTaskDelay(pdMS_TO_TICKS(1));
 
-    ESP_RETURN_ON_ERROR(
-        i2c_master_receive(dev_handle, bytes_read, 9, -1),
-        TAG, "I2C get serial id read failed"
-    );
-
-    xSemaphoreGive(device_in_use_mutex);
-
-    ESP_RETURN_ON_ERROR(
-        crc8_check(bytes_read, 9),
-        TAG, "I2C get serial id CRC failed"
-    );
-
     // Copy the read ID to the provided id pointer
-    id[0] = bytes_read[0];
-    id[1] = bytes_read[1];
-    // bytes_read[2] is CRC for the first word, we can ignore it.
-
-    id[2] = bytes_read[3];
-    id[3] = bytes_read[4];
-    // bytes_read[5] is CRC for the second word, we can ignore it.
-
-    id[4] = bytes_read[6];
-    id[5] = bytes_read[7];
-    // bytes_read[8] is CRC for the third word, we can ignore it.
+    id[0] = response[0];
+    id[1] = response[1];
+    id[2] = response[2];
 
     return ESP_OK;
 }

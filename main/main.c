@@ -28,23 +28,29 @@ static void sgp30_event_handler(
     time(&now);
     switch ((mox_event_id_t) event_id) {
         case SENSOR_EVENT_NEW_MEASUREMENT:
-            new_measurement = *((sgp30_measurement_t*) event_data);
-            ESP_LOGI(TAG, "Measured eCO2= %d TVOC= %d", new_measurement.eCO2, new_measurement.TVOC);
-            break;
+             new_measurement = *((sgp30_measurement_t*) event_data);
+             ESP_LOGI(TAG, "Measured eCO2= %d TVOC= %d", new_measurement.eCO2, new_measurement.TVOC);
+             break;
 
         case SENSOR_IAQ_INITIALIZING:
-            ESP_LOGI(TAG, "SGP30 Initializing ...");
-            break;
+             ESP_LOGI(TAG, "SGP30 Initializing ...");
+             break;
 
         case SENSOR_IAQ_INITIALIZED:
-            ESP_LOGI(TAG, "SGP30 Initialized.");
-            sgp30_get_baseline();
-            sgp30_set_baseline();
-            sgp30_start_measuring();
-            break;
+             ESP_LOGI(TAG, "SGP30 Initialized.");
+             sgp30_start_measuring();
+             break;
+
         case SENSOR_GOT_BASELINE:
-            new_baseline = *((sgp30_baseline_t*) event_data);
-            ESP_LOGI(TAG, "Baseline eCO2= %d TVOC= %d at timestamp %s", new_baseline.baseline.eCO2, new_baseline.baseline.TVOC, ctime(&now));
+             new_baseline = *((sgp30_baseline_t*) event_data);
+             ESP_LOGI(
+                 TAG,
+                 "Baseline eCO2= %d TVOC= %d at timestamp %s",
+                 new_baseline.baseline.eCO2,
+                 new_baseline.baseline.TVOC,
+                 ctime(&now)
+             );
+             break;
 
         default:
             ESP_LOGD(TAG, "Unhandled event_id");
@@ -103,7 +109,6 @@ void app_main(void) {
     );
 
     sgp30_init(sgp30_event_loop_handle);
-    sgp30_init_air_quality();
     // Inicializa la gestión Wi-Fi
     //wifi_manager_init();
 
