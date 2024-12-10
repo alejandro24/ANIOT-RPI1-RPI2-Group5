@@ -2,6 +2,7 @@
 #include "driver/i2c_types.h"
 #include "esp_log.h"
 #include "wifi.h"
+#include "sntp_sync.h"
 
 #include "esp_event.h"
 #include "esp_event_base.h"
@@ -63,6 +64,7 @@ void init_i2c(void)
 
     ESP_ERROR_CHECK(sgp30_device_create(bus_handle, SGP30_I2C_ADDR, 400000));
 }
+void my_sntp_init();
 void app_main(void) {
 
     esp_err_t ret = nvs_flash_init();
@@ -114,4 +116,15 @@ void app_main(void) {
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));  // Wait a second to avoid a busy loop
 }
+    my_sntp_init();
+
+    // Get and print the current time
+    struct tm timeinfo;
+    if (get_time(&timeinfo)) {
+        ESP_LOGI(TAG, "Current time: %d-%d-%d %d:%d:%d", 
+                 timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, 
+                 timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+    } else {
+        ESP_LOGI(TAG, "Failed to get time");
+    }
 }
