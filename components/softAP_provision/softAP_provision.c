@@ -18,11 +18,11 @@
 #include "softAP_provision.h"
 
 static const char *TAG = "softAP_provisioning";
-static esp_event_loop_handle_t softAP_provision_event_loop;
 static char thingsboard_url[100];
+static EventGroupHandle_t provision_event_group;
 
 #if CONFIG_EXAMPLE_PROV_SECURITY_VERSION_2
-static esp_err_t example_get_sec2_salt(const char **salt, uint16_t *salt_len) {
+esp_err_t example_get_sec2_salt(const char **salt, uint16_t *salt_len) {
 #if CONFIG_EXAMPLE_PROV_SEC2_DEV_MODE
     ESP_LOGI(TAG, "Development mode: using hard coded salt");
     *salt = sec2_salt;
@@ -34,7 +34,7 @@ static esp_err_t example_get_sec2_salt(const char **salt, uint16_t *salt_len) {
 #endif
 }
 
-static esp_err_t example_get_sec2_verifier(const char **verifier, uint16_t *verifier_len) {
+esp_err_t example_get_sec2_verifier(const char **verifier, uint16_t *verifier_len) {
 #if CONFIG_EXAMPLE_PROV_SEC2_DEV_MODE
     ESP_LOGI(TAG, "Development mode: using hard coded verifier");
     *verifier = sec2_verifier;
@@ -48,14 +48,64 @@ static esp_err_t example_get_sec2_verifier(const char **verifier, uint16_t *veri
 }
 #endif
 
-static void wifi_init_sta(void)
+void provision_event_handler(void* arg, esp_event_base_t event_base,
+                          int32_t event_id, void* event_data)
+{
+#ifdef CONFIG_EXAMPLE_RESET_PROV_MGR_ON_FAILURE
+    static int retries;
+#endif
+    switch (event_id) {
+        case WIFI_PROV_START:
+            ESP_LOGI(TAG, "Provisioning started");
+            break;
+        case WIFI_PROV_CRED_RECV: {
+            wifi_sta_config_t *wifi_sta_cfg = (wifi_sta_config_t *)event_data;
+            ESP_LOGI(TAG, "Received Wi-Fi credentials"
+                        "\n\tSSID     : %s\n\tPassword : %s",
+                        (const char *) wifi_sta_cfg->ssid,
+                        (const char *) wifi_sta_cfg->password);
+            break;
+        }
+        case WIFI_PROV_CRED_FAIL: {
+            wifi_prov_sta_fail_reason_t *reason = (wifi_prov_sta_fail_reason_t *)event_data;
+            ESP_LOGE(TAG, "Provisioning failed!\n\tReason : %s"
+                        "\n\tPlease reset to factory and retry provisioning",
+                        (*reason == WIFI_PROV_STA_AUTH_ERROR) ?
+                        "Wi-Fi station authentication failed" : "Wi-Fi access-point not found");
+#ifdef CONFIG_EXAMPLE_RESET_PROV_MGR_ON_FAILURE
+            retries++;
+            if (retries >= CONFIG_EXAMPLE_PROV_MGR_MAX_RETRY_CNT) {
+                ESP_LOGI(TAG, "Failed to connect with provisioned AP, resetting provisioned credentials");
+                wifi_prov_mgr_reset_sm_state_on_failure();
+                retries = 0;
+            }
+#endif
+            break;
+        }
+        case WIFI_PROV_CRED_SUCCESS:
+            ESP_LOGI(TAG, "Provisioning successful");
+            xEventGroupSetBits(provision_event_group, PROVISION_DONE_EVENT);
+#ifdef CONFIG_EXAMPLE_RESET_PROV_MGR_ON_FAILURE
+            retries = 0;
+#endif
+            break;
+        case WIFI_PROV_END:
+            /* De-initialize manager once provisioning is finished */
+            wifi_prov_mgr_deinit();
+            break;
+        default:
+            break;
+    }
+}
+
+void wifi_init_sta(void)
 {
     /* Start Wi-Fi in station mode */
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_start());
 }
 
-static void get_device_service_name(char *service_name, size_t max)
+void get_device_service_name(char *service_name, size_t max)
 {
     uint8_t eth_mac[6];
     const char *ssid_prefix = "PROV_";
@@ -88,7 +138,7 @@ esp_err_t thingsboard_url_prov_data_handler(uint32_t session_id, const uint8_t *
     return ESP_OK;
 }
 
-static void wifi_prov_print_qr(const char *name, const char *username, const char *pop, const char *transport)
+void wifi_prov_print_qr(const char *name, const char *username, const char *pop, const char *transport)
 {
     if (!name || !transport) {
         ESP_LOGW(TAG, "Cannot generate QR code payload. Data missing.");
@@ -118,12 +168,16 @@ static void wifi_prov_print_qr(const char *name, const char *username, const cha
     ESP_LOGI(TAG, "If QR code is not visible, copy paste the below URL in a browser.\n%s?data=%s", QRCODE_BASE_URL, payload);
 }
 
-static void softAP_provision_init(esp_event_loop_handle_t loop){
+void softAP_provision_init(EventGroupHandle_t event_group){
+
+    provision_event_group = event_group;
+    
     /* Initialize TCP/IP */
     ESP_ERROR_CHECK(esp_netif_init());
 
-    /* Initialize Wi-Fi including netif with default config */
-    esp_netif_create_default_wifi_sta();
+    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_PROV_EVENT, ESP_EVENT_ANY_ID, &provision_event_handler, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(PROTOCOMM_SECURITY_SESSION_EVENT, ESP_EVENT_ANY_ID, &provision_event_handler, NULL));
+
     /* Initialize Wi-Fi including netif with default config */
     esp_netif_create_default_wifi_sta();
     esp_netif_create_default_wifi_ap();

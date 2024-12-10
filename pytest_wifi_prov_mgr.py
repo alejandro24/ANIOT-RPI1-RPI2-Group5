@@ -12,7 +12,7 @@ import sys
 try:
     import esp_prov
 except ImportError:
-    sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'tools'))
+    sys.path.append(os.path.join(os.path.dirname(__file__), '.'))
     import esp_prov
 
 import pytest
@@ -33,9 +33,9 @@ def test_wifi_prov_mgr(dut: Dut, sec_ver: int) -> None:
     verbose = False
     protover = 'v1.1'
     provmode = 'softap'  # Cambiar a softAP
-    ap_ssid = 'myssid'
-    ap_password = 'mypassword'
-    custom_param = 'my_custom_value'  # Parámetro personalizado
+    ap_ssid = 'MIOT'
+    ap_password = 'MIOT_WIFI_2024!'
+    custom_param = 'url/thingsboard/ejemplo'  # Parámetro personalizado
 
     logging.info('Getting security')
     if sec_ver == 1:
