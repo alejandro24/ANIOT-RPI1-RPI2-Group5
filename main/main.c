@@ -1,4 +1,4 @@
-//#include "wifi_manager.h"
+ //#include "wifi_manager.h"
 #include "driver/i2c_types.h"
 #include "esp_log.h"
 #include "wifi.h"
@@ -6,6 +6,8 @@
 
 #include "esp_event.h"
 #include "esp_event_base.h"
+#include "freertos/idf_additions.h"
+#include "freertos/projdefs.h"
 #include "sgp30.h"
 #include <stdint.h>
 #include <string.h>
@@ -25,6 +27,8 @@ static void sgp30_event_handler(
              "", base, event_id);
     sgp30_measurement_t new_measurement;
     sgp30_baseline_t new_baseline;
+    time_t now;
+    time(&now);
     switch ((mox_event_id_t) event_id) {
         case SENSOR_EVENT_NEW_MEASUREMENT:
             new_measurement = *((sgp30_measurement_t*) event_data);
@@ -37,11 +41,13 @@ static void sgp30_event_handler(
 
         case SENSOR_IAQ_INITIALIZED:
             ESP_LOGI(TAG, "SGP30 Initialized.");
+            sgp30_get_baseline();
+            sgp30_set_baseline();
             sgp30_start_measuring();
             break;
         case SENSOR_GOT_BASELINE:
             new_baseline = *((sgp30_baseline_t*) event_data);
-            ESP_LOGI(TAG, "Baseline eCO2= %d TVOC= %d at timestamp %" PRIi64 "", new_baseline.baseline.eCO2, new_baseline.baseline.TVOC, new_baseline.timestamp);
+            ESP_LOGI(TAG, "Baseline eCO2= %d TVOC= %d at timestamp %s", new_baseline.baseline.eCO2, new_baseline.baseline.TVOC, ctime(&now));
 
         default:
             ESP_LOGD(TAG, "Unhandled event_id");
