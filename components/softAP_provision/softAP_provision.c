@@ -168,22 +168,22 @@ void wifi_prov_print_qr(const char *name, const char *username, const char *pop,
     ESP_LOGI(TAG, "If QR code is not visible, copy paste the below URL in a browser.\n%s?data=%s", QRCODE_BASE_URL, payload);
 }
 
-void softAP_provision_init(EventGroupHandle_t event_group){
+esp_err_t softAP_provision_init(EventGroupHandle_t event_group){
 
     provision_event_group = event_group;
     
     /* Initialize TCP/IP */
-    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_RETURN_ON_ERROR(esp_netif_init());
 
-    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_PROV_EVENT, ESP_EVENT_ANY_ID, &provision_event_handler, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_register(PROTOCOMM_SECURITY_SESSION_EVENT, ESP_EVENT_ANY_ID, &provision_event_handler, NULL));
+    ESP_RETURN_ON_ERROR(esp_event_handler_register(WIFI_PROV_EVENT, ESP_EVENT_ANY_ID, &provision_event_handler, NULL));
+    ESP_RETURN_ON_ERROR(esp_event_handler_register(PROTOCOMM_SECURITY_SESSION_EVENT, ESP_EVENT_ANY_ID, &provision_event_handler, NULL));
 
     /* Initialize Wi-Fi including netif with default config */
     esp_netif_create_default_wifi_sta();
     esp_netif_create_default_wifi_ap();
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    ESP_RETURN_ON_ERROR(esp_wifi_init(&cfg));
 
         /* Configuration for the provisioning manager */
     wifi_prov_mgr_config_t config = {
@@ -194,7 +194,7 @@ void softAP_provision_init(EventGroupHandle_t event_group){
     };
     /* Initialize provisioning manager with the
      * configuration parameters set above */
-    ESP_ERROR_CHECK(wifi_prov_mgr_init(config));
+    ESP_RETURN_ON_ERROR(wifi_prov_mgr_init(config));
     
     char service_name[12];
     get_device_service_name(service_name, sizeof(service_name));
@@ -277,4 +277,6 @@ void softAP_provision_init(EventGroupHandle_t event_group){
     wifi_prov_mgr_endpoint_register("thingsboard-url", thingsboard_url_prov_data_handler, NULL);
 
     wifi_prov_print_qr(service_name, username, pop, PROV_TRANSPORT_SOFTAP);
+
+    return ESP_OK;
 }

@@ -66,4 +66,4 @@ esp_err_t thingsboard_url_prov_data_handler(uint32_t session_id, const uint8_t *
 
 void wifi_prov_print_qr(const char *name, const char *username, const char *pop, const char *transport);
 
-void softAP_provision_init(EventGroupHandle_t provision_event_group);
+esp_err_t softAP_provision_init(EventGroupHandle_t provision_event_group);
