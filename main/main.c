@@ -1,9 +1,10 @@
-//#include "wifi_manager.h"
+ //#include "wifi_manager.h"
 #include "driver/i2c_types.h"
 #include "esp_log.h"
 #include "esp_event.h"
 #include "esp_event_base.h"
-#include <esp_wifi.h>
+#include "freertos/idf_additions.h"
+#include "freertos/projdefs.h"
 #include "sgp30.h"
 #include "softAP_provision.h"
 #include <stdint.h>
@@ -26,23 +27,33 @@ static void sgp30_event_handler(
              "", base, event_id);
     sgp30_measurement_t new_measurement;
     sgp30_baseline_t new_baseline;
+    time_t now;
+    time(&now);
     switch ((mox_event_id_t) event_id) {
         case SENSOR_EVENT_NEW_MEASUREMENT:
-            new_measurement = *((sgp30_measurement_t*) event_data);
-            ESP_LOGI(TAG, "Measured eCO2= %d TVOC= %d", new_measurement.eCO2, new_measurement.TVOC);
-            break;
+             new_measurement = *((sgp30_measurement_t*) event_data);
+             ESP_LOGI(TAG, "Measured eCO2= %d TVOC= %d", new_measurement.eCO2, new_measurement.TVOC);
+             break;
 
         case SENSOR_IAQ_INITIALIZING:
-            ESP_LOGI(TAG, "SGP30 Initializing ...");
-            break;
+             ESP_LOGI(TAG, "SGP30 Initializing ...");
+             break;
 
-        /*case SENSOR_IAQ_INITIALIZED:
-            ESP_LOGI(TAG, "SGP30 Initialized.");
-            sgp30_start_measuring();
-            break;*/
+        case SENSOR_IAQ_INITIALIZED:
+             ESP_LOGI(TAG, "SGP30 Initialized.");
+             sgp30_start_measuring();
+             break;
+
         case SENSOR_GOT_BASELINE:
-            new_baseline = *((sgp30_baseline_t*) event_data);
-            ESP_LOGI(TAG, "Baseline eCO2= %d TVOC= %d at timestamp %" PRIi64 "", new_baseline.baseline.eCO2, new_baseline.baseline.TVOC, new_baseline.timestamp);
+             new_baseline = *((sgp30_baseline_t*) event_data);
+             ESP_LOGI(
+                 TAG,
+                 "Baseline eCO2= %d TVOC= %d at timestamp %s",
+                 new_baseline.baseline.eCO2,
+                 new_baseline.baseline.TVOC,
+                 ctime(&now)
+             );
+             break;
 
         default:
             ESP_LOGD(TAG, "Unhandled event_id");
@@ -117,15 +128,7 @@ void app_main(void) {
 
     ESP_ERROR_CHECK(ret);
 
-    //init_i2c();
-
-    /*esp_event_loop_args_t sgp30_event_loop_args = {
-        .queue_size =5,
-        .task_name = "sgp30_event_loop_task",*/ /* since it is a task it can be stopped */
-    //    .task_stack_size = 4096,
-    //    .task_priority = uxTaskPriorityGet(NULL),
-    //    .task_core_id = tskNO_AFFINITY,
-    //};
+    init_i2c();
 
     /* Initialize the event loop */
     ESP_ERROR_CHECK(esp_event_loop_create_default());
@@ -139,7 +142,7 @@ void app_main(void) {
     /* Wait for Provision*/
     xEventGroupWaitBits(provision_event_group, PROVISION_DONE_EVENT, true, true, portMAX_DELAY);
 
-    /*esp_event_loop_create(&sgp30_event_loop_args, &sgp30_event_loop_handle);
+    esp_event_loop_create(&sgp30_event_loop_args, &sgp30_event_loop_handle);
     ESP_ERROR_CHECK(
         esp_event_handler_register_with(
             sgp30_event_loop_handle,
@@ -151,5 +154,5 @@ void app_main(void) {
     );
 
     sgp30_init(sgp30_event_loop_handle);
-    sgp30_init_air_quality();*/
+    sgp30_init_air_quality();
 }

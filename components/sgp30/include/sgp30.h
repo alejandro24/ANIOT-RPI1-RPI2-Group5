@@ -6,9 +6,11 @@
 #include "esp_event_base.h"
 #include "driver/i2c_master.h"
 #include <stdint.h>
+#include <time.h>
 
 #define SGP30_I2C_ADDR ((uint8_t) 0x58) /* I2C address of SGP30 sensor */
 #define SGP30_CRC_8_POLY ((uint8_t) 0x31) /* CRC-8 generator polynomial */
+#define SGP30_CRC_8_INIT ((uint8_t) 0xFF) /* CRC-8 generator polynomial */
 
 typedef enum {
     SENSOR_EVENT_NEW_MEASUREMENT,
@@ -40,7 +42,7 @@ typedef struct {
 
 typedef struct {
     sgp30_measurement_t baseline;
-    int64_t timestamp;
+    time_t timestamp;
 } sgp30_baseline_t;
 
 ESP_EVENT_DECLARE_BASE(SENSOR_EVENTS);
@@ -128,10 +130,11 @@ esp_err_t sgp30_measure_air_quality();
  *     - ESP_FAIL: Communication with the sensor failed
  *     - ESP_ERR_INVALID_CRC: Received wrong chechsum
  */
-esp_err_t sgp30_get_id(i2c_master_dev_handle_t dev_handle, uint8_t *id);
+esp_err_t sgp30_get_id();
 /**
  * TODO DOCUMENTATION
     */
 esp_err_t sgp30_get_baseline();
+esp_err_t sgp30_set_baseline();
 
 #endif
