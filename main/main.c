@@ -123,10 +123,6 @@ void app_main(void) {
     wifi_init_sta();  // Call your WiFi initialization function
 
  //wifi_manager_connect("MiFibra-F4A8", "7tcHKtYk!");
-
-    while (1) {
-        vTaskDelay(pdMS_TO_TICKS(1000));  // Wait a second to avoid a busy loop
-}
     my_sntp_init();
 
     // Get and print the current time
