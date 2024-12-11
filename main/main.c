@@ -134,7 +134,7 @@ void app_main(void) {
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler_got_ip, NULL));
 
     provision_event_group = xEventGroupCreate();
-    softAP_provision_init(provision_event_group);
+    ESP_ERROR_CHECK(softAP_provision_init(provision_event_group));
 
     /* Wait for Provision*/
     xEventGroupWaitBits(provision_event_group, PROVISION_DONE_EVENT, true, true, portMAX_DELAY);

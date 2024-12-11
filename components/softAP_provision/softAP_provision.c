@@ -5,6 +5,8 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/event_groups.h>
+#include "esp_err.h"
+#include "esp_check.h"
 
 #include <esp_log.h>
 #include <esp_wifi.h>
@@ -173,17 +175,17 @@ esp_err_t softAP_provision_init(EventGroupHandle_t event_group){
     provision_event_group = event_group;
     
     /* Initialize TCP/IP */
-    ESP_RETURN_ON_ERROR(esp_netif_init());
+    ESP_RETURN_ON_ERROR(esp_netif_init(), TAG, "Error iniciando TCP/IP");
 
-    ESP_RETURN_ON_ERROR(esp_event_handler_register(WIFI_PROV_EVENT, ESP_EVENT_ANY_ID, &provision_event_handler, NULL));
-    ESP_RETURN_ON_ERROR(esp_event_handler_register(PROTOCOMM_SECURITY_SESSION_EVENT, ESP_EVENT_ANY_ID, &provision_event_handler, NULL));
+    ESP_RETURN_ON_ERROR(esp_event_handler_register(WIFI_PROV_EVENT, ESP_EVENT_ANY_ID, &provision_event_handler, NULL), TAG, "Fallo en creacion del handler");
+    ESP_RETURN_ON_ERROR(esp_event_handler_register(PROTOCOMM_SECURITY_SESSION_EVENT, ESP_EVENT_ANY_ID, &provision_event_handler, NULL), TAG, "Fallo en creacion del handler");
 
     /* Initialize Wi-Fi including netif with default config */
     esp_netif_create_default_wifi_sta();
     esp_netif_create_default_wifi_ap();
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_RETURN_ON_ERROR(esp_wifi_init(&cfg));
+    ESP_RETURN_ON_ERROR(esp_wifi_init(&cfg), TAG, "Error iniciando la configuracion Wifi");
 
         /* Configuration for the provisioning manager */
     wifi_prov_mgr_config_t config = {
@@ -194,7 +196,7 @@ esp_err_t softAP_provision_init(EventGroupHandle_t event_group){
     };
     /* Initialize provisioning manager with the
      * configuration parameters set above */
-    ESP_RETURN_ON_ERROR(wifi_prov_mgr_init(config));
+    ESP_RETURN_ON_ERROR(wifi_prov_mgr_init(config),TAG, "Fallo iniciando el provisionamiento");
     
     char service_name[12];
     get_device_service_name(service_name, sizeof(service_name));
@@ -247,8 +249,8 @@ esp_err_t softAP_provision_init(EventGroupHandle_t event_group){
          */
         wifi_prov_security2_params_t sec2_params = {};
 
-        ESP_ERROR_CHECK(example_get_sec2_salt(&sec2_params.salt, &sec2_params.salt_len));
-        ESP_ERROR_CHECK(example_get_sec2_verifier(&sec2_params.verifier, &sec2_params.verifier_len));
+        ESP_RETURN_ON_ERROR(example_get_sec2_salt(&sec2_params.salt, &sec2_params.salt_len),TAG, "Fallo al obtener el salt");
+        ESP_RETURN_ON_ERROR(example_get_sec2_verifier(&sec2_params.verifier, &sec2_params.verifier_len),TAG, "Fallo al obtener verificacion");
 
         wifi_prov_security2_params_t *sec_params = &sec2_params;
 #endif
@@ -268,7 +270,7 @@ esp_err_t softAP_provision_init(EventGroupHandle_t event_group){
     wifi_prov_mgr_endpoint_create("thingsboard-url");
 
     /* Start provisioning service */
-    ESP_ERROR_CHECK(wifi_prov_mgr_start_provisioning(security, (const void *) sec_params, service_name, service_key));
+    ESP_RETURN_ON_ERROR(wifi_prov_mgr_start_provisioning(security, (const void *) sec_params, service_name, service_key), TAG, "Fallo al empezar el provisionamiento");
 
     /* The handler for the optional endpoint created above.
     * This call must be made after starting the provisioning, and only if the endpoint
