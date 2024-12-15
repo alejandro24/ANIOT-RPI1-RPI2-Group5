@@ -1,137 +1,118 @@
- //#include "wifi_manager.h"
-#include "driver/i2c_types.h"
-#include "esp_log.h"
-#include "wifi.h"
-#include "sntp_sync.h"
-
-#include "esp_event.h"
-#include "esp_event_base.h"
-#include "freertos/idf_additions.h"
-#include "freertos/projdefs.h"
-#include "sgp30.h"
-#include <stdint.h>
+#include <stdio.h> 
 #include <string.h>
-#include <nvs_flash.h>
-static char* TAG = "MAIN";
-i2c_master_bus_handle_t bus_handle;
-i2c_master_dev_handle_t sgp30;
-esp_event_loop_handle_t sgp30_event_loop_handle;
+#include "esp_log.h"
+#include "wifi.h"  // Include your WiFi functions
+#include "esp_system.h"
+#include "esp_event.h"
+#include "esp_wifi.h"
+#include "nvs_flash.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_sntp.h"  // Use esp_sntp.h for SNTP functionality
+#include "lwip/dns.h"  // For DNS resolution
+#include "lwip/netif.h"  // For network interface handling
 
-static void sgp30_event_handler(
-    void * handler_args,
-    esp_event_base_t base,
-    int32_t event_id,
-    void *event_data)
-{
-    ESP_LOGD(TAG, "Event dispached from event loop base=%s, event_id=%" PRIi32
-             "", base, event_id);
-    sgp30_measurement_t new_measurement;
-    sgp30_baseline_t new_baseline;
-    time_t now;
-    time(&now);
-    switch ((mox_event_id_t) event_id) {
-        case SENSOR_EVENT_NEW_MEASUREMENT:
-             new_measurement = *((sgp30_measurement_t*) event_data);
-             ESP_LOGI(TAG, "Measured eCO2= %d TVOC= %d", new_measurement.eCO2, new_measurement.TVOC);
-             break;
+static const char *TAG = "MAIN";
 
-        case SENSOR_IAQ_INITIALIZING:
-             ESP_LOGI(TAG, "SGP30 Initializing ...");
-             break;
+// Global flag to indicate if SNTP sync is complete
+static bool sntp_synced = false;
 
-        case SENSOR_IAQ_INITIALIZED:
-             ESP_LOGI(TAG, "SGP30 Initialized.");
-             sgp30_start_measuring();
-             break;
+// SNTP callback function to notify when sync is complete
+static void sntp_sync_callback(void) {
+    sntp_synced = true;  // Set flag when SNTP sync is done
+}
 
-        case SENSOR_GOT_BASELINE:
-             new_baseline = *((sgp30_baseline_t*) event_data);
-             ESP_LOGI(
-                 TAG,
-                 "Baseline eCO2= %d TVOC= %d at timestamp %s",
-                 new_baseline.baseline.eCO2,
-                 new_baseline.baseline.TVOC,
-                 ctime(&now)
-             );
-             break;
+// Set DNS server (Google DNS)
+void set_dns(void) {
+    ip4_addr_t dns_server;
+    IP4_ADDR(&dns_server, 8, 8, 8, 8);  // Google's public DNS server
 
-        default:
-            ESP_LOGD(TAG, "Unhandled event_id");
-            break;
+    // Set primary DNS
+    dns_setserver(0, &dns_server);
+
+    // Optionally, set secondary DNS (e.g., 8.8.4.4)
+    IP4_ADDR(&dns_server, 8, 8, 4, 4);
+    dns_setserver(1, &dns_server);
+
+    ESP_LOGI(TAG, "DNS servers set.");
+}
+
+// Initialize SNTP
+void initialize_sntp(void) {
+    ESP_LOGI(TAG, "Initializing SNTP...");
+
+    // Set SNTP operating mode to polling
+    esp_sntp_setoperatingmode(ESP_SNTP_OPMODE_POLL);  // Use polling mode
+
+    // Resolve NTP server address using DNS
+    struct ip_addr ntp_server_ip;
+    esp_err_t err = dns_gethostbyname("pool.ntp.org", &ntp_server_ip, NULL, NULL);
+    if (err != ERR_OK) {
+        ESP_LOGE(TAG, "Failed to resolve NTP server address: %s", esp_err_to_name(err));
+        return;
+    }
+
+    // Set NTP server
+    esp_sntp_setserver(0, &ntp_server_ip);  // Set NTP server (index 0)
+
+    // Initialize SNTP
+    esp_sntp_init();
+
+    // Polling SNTP synchronization status
+    ESP_LOGI(TAG, "Waiting for SNTP sync...");
+    int retries = 0;
+    while (!sntp_synced && retries < 10) {  // Wait for sync flag
+        ESP_LOGI(TAG, "Retrying SNTP sync... Attempt %d", retries + 1);
+        vTaskDelay(pdMS_TO_TICKS(1000));  // Wait 1 second before retrying
+        retries++;
+    }
+
+    if (sntp_synced) {
+        ESP_LOGI(TAG, "SNTP sync successful!");
+    } else {
+        ESP_LOGE(TAG, "SNTP sync failed after multiple attempts.");
     }
 }
 
-void init_i2c(void)
-{
-    i2c_master_bus_config_t i2c_bus_config = {
-        .clk_source = I2C_CLK_SRC_DEFAULT,
-        .i2c_port = I2C_NUM_0,
-        .scl_io_num = 22,
-        .sda_io_num = 21,
-        .glitch_ignore_cnt = 7,
-        .flags.enable_internal_pullup = true,
-    };
-
-    ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_config, &bus_handle));
-
-    ESP_ERROR_CHECK(sgp30_device_create(bus_handle, SGP30_I2C_ADDR, 400000));
-}
-void my_sntp_init();
 void app_main(void) {
-
+    // Initialize NVS (Non-Volatile Storage)
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        /* NVS partition was truncated
-         * and needs to be erased */
-        ESP_ERROR_CHECK(nvs_flash_erase());
+        ESP_ERROR_CHECK(nvs_flash_erase());  // If NVS is corrupted, erase and reinitialize
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);  // Ensure NVS initialization is successful
 
-        /* Retry nvs_flash_init */
-        ESP_ERROR_CHECK(nvs_flash_init());
+    ESP_LOGI(TAG, "NVS initialized successfully");
+
+    // Initialize Wi-Fi
+    ESP_LOGI(TAG, "Initializing Wi-Fi...");
+    wifi_init_sta();  // Initialize Wi-Fi (from your wifi.c file)
+
+    // Wait for Wi-Fi connection
+    ESP_LOGI(TAG, "Waiting for Wi-Fi connection...");
+    int retries = 0;
+    while (retries < 20) {  // Set retry limit
+        if (esp_wifi_connect() == ESP_OK) {
+            ESP_LOGI(TAG, "Wi-Fi connected successfully!");
+            break;
+        }
+        retries++;
+        ESP_LOGI(TAG, "Retrying Wi-Fi connection... Attempt %d", retries);
+        vTaskDelay(pdMS_TO_TICKS(2000));  // Delay for 2 seconds before retrying
     }
 
-    ESP_ERROR_CHECK(ret);
-
-    init_i2c();
-
-    esp_event_loop_args_t sgp30_event_loop_args = {
-        .queue_size =5,
-        .task_name = "sgp30_event_loop_task", /* since it is a task it can be stopped */
-        .task_stack_size = 4096,
-        .task_priority = uxTaskPriorityGet(NULL),
-        .task_core_id = tskNO_AFFINITY,
-    };
-
-    esp_event_loop_create(&sgp30_event_loop_args, &sgp30_event_loop_handle);
-    ESP_ERROR_CHECK(
-        esp_event_handler_register_with(
-            sgp30_event_loop_handle,
-            SENSOR_EVENTS,
-            ESP_EVENT_ANY_ID,
-            sgp30_event_handler,
-            NULL
-        )
-    );
-
-    sgp30_init(sgp30_event_loop_handle);
-    // Inicializa la gestión Wi-Fi
-    //wifi_manager_init();
-
-    // Conectar al Wi-Fi con los parámetros deseados
-    
-    
-     ESP_LOGI(TAG, "Initializing WiFi...");
-    wifi_init_sta();  // Call your WiFi initialization function
-
- //wifi_manager_connect("MiFibra-F4A8", "7tcHKtYk!");
-    my_sntp_init();
-
-    // Get and print the current time
-    struct tm timeinfo;
-    if (get_time(&timeinfo)) {
-        ESP_LOGI(TAG, "Current time: %d-%d-%d %d:%d:%d", 
-                 timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, 
-                 timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
-    } else {
-        ESP_LOGI(TAG, "Failed to get time");
+    if (retries == 20) {
+        ESP_LOGE(TAG, "Failed to connect to Wi-Fi after multiple attempts");
+        return;  // Exit if Wi-Fi connection fails
     }
+
+    // Set DNS after Wi-Fi connection
+    set_dns();
+
+    // Initialize SNTP after Wi-Fi is connected
+    initialize_sntp();
+
+    // Continue with the rest of your application logic here
+    // For example, start sensor monitoring, etc.
 }
