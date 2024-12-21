@@ -77,6 +77,39 @@ void init_i2c(void)
 
     ESP_ERROR_CHECK(sgp30_device_create(bus_handle, SGP30_I2C_ADDR, 400000));
 }
+ /* 
+  void initialize_sntp() {
+    sntp_setoperatingmode(SNTP_OPMODE_POLL);
+    sntp_setservername(0, "pool.ntp.org"); // Puedes usar otro servidor NTP si lo deseas
+    sntp_init();
+}
+    */
+    /* 
+bool obtain_time() {
+    initialize_sntp();
+
+    // Esperar sincronización con SNTP
+    for (int retry = 0; retry < 10; retry++) { // Máximo 10 reintentos
+        time_t now = 0;
+        struct tm timeinfo = {0};
+        time(&now);
+        localtime_r(&now, &timeinfo);
+
+        if (timeinfo.tm_year > (2020 - 1900)) { // Comprobamos si la hora es válida
+            ESP_LOGI(TAG, "Time synchronized successfully");
+            return true;
+        }
+
+        ESP_LOGI(TAG, "Waiting for SNTP synchronization... Attempt %d", retry + 1);
+        vTaskDelay(pdMS_TO_TICKS(2000)); // Esperar 2 segundos antes del próximo intento
+    }
+
+    ESP_LOGE(TAG, "Failed to synchronize time with SNTP");
+    return false; // Sincronización fallida
+}
+}
+    */
+
 void app_main(void) {
 
     esp_err_t ret = nvs_flash_init();
@@ -113,7 +146,10 @@ void app_main(void) {
     );
 
     sgp30_init(sgp30_event_loop_handle);
-       /* WIFI Y SNTP
+       /*
+       ************************************
+        WIFI Y SNTP(TOLERANCIA A FALLOS)
+        *************************************
      // Initialize NVS
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -143,13 +179,16 @@ void app_main(void) {
 
     if (retries == 20) {
         ESP_LOGE(TAG, "Failed to connect to Wi-Fi after multiple attempts");
-        return;  // Stop execution if Wi-Fi connection fails
+        return; // Stop execution if Wi-Fi connection fails
     }
 
-    // Initialize SNTP for time synchronization
-    ESP_LOGI(TAG, "Starting SNTP synchronization...");
-    initialize_sntp();
+    // Attempt SNTP synchronization
+    if (!obtain_time()) {
+        ESP_LOGE(TAG, "SNTP synchronization failed after multiple attempts");
+        return; // Stop execution if SNTP synchronization fails
+    }
 
     // Continue with the rest of the application logic
+    ESP_LOGI(TAG, "Application logic continues...");
     */
 }
