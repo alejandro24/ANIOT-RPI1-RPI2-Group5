@@ -1,4 +1,4 @@
- //#include "wifi_manager.h"
+#include <esp_wifi.h>
 #include "driver/i2c_types.h"
 #include "esp_log.h"
 #include "esp_event.h"
@@ -142,6 +142,14 @@ void app_main(void) {
     /* Wait for Provision*/
     xEventGroupWaitBits(provision_event_group, PROVISION_DONE_EVENT, true, true, portMAX_DELAY);
 
+    esp_event_loop_args_t sgp30_event_loop_args = {
+        .queue_size =5,
+        .task_name = "sgp30_event_loop_task", /* since it is a task it can be stopped */
+        .task_stack_size = 4096,
+        .task_priority = uxTaskPriorityGet(NULL),
+        .task_core_id = tskNO_AFFINITY,
+    };
+
     esp_event_loop_create(&sgp30_event_loop_args, &sgp30_event_loop_handle);
     ESP_ERROR_CHECK(
         esp_event_handler_register_with(
@@ -154,5 +162,4 @@ void app_main(void) {
     );
 
     sgp30_init(sgp30_event_loop_handle);
-    sgp30_init_air_quality();
 }

@@ -360,7 +360,7 @@ esp_err_t sgp30_measure_air_quality()
         sgp30_command_rw(
             sgp30_dev_handle,
             SGP30_REG_MEASURE_AIR_QUALITY,
-            13,
+            25,
             13,
             response_buffer,
             2),
