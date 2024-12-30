@@ -10,6 +10,15 @@
 #include <stdint.h>
 #include <string.h>
 #include <nvs_flash.h>
+#include "sntp_sync.h"  // Include the SNTP component
+#include "wifi.h"
+#include <stdio.h>
+
+
+#include "nvs_flash.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "lwip/apps/sntp.h"
 
 static char* TAG = "MAIN";
 i2c_master_bus_handle_t bus_handle;
@@ -114,19 +123,45 @@ void init_i2c(void)
 
     ESP_ERROR_CHECK(sgp30_device_create(bus_handle, SGP30_I2C_ADDR, 400000));
 }
+ 
+  void initialize_sntp() {
+    sntp_setoperatingmode(SNTP_OPMODE_POLL);
+    sntp_setservername(0, "216.239.35.4"); // Puedes usar otro servidor NTP si lo deseas
+    sntp_init();
+}
+  
+
+
+
+ 
+
+bool obtain_time() {
+    initialize_sntp();
+
+    // Esperar sincronización con SNTP
+    for (int retry = 0; retry < 10; retry++) { // Máximo 10 reintentos
+        time_t now = 0;
+        struct tm timeinfo = {0};
+        time(&now);
+        localtime_r(&now, &timeinfo);
+
+        if (timeinfo.tm_year > (2020 - 1900)) { // Comprobamos si la hora es válida
+            ESP_LOGI(TAG, "Time synchronized successfully");
+            return true;
+        }
+
+        ESP_LOGI(TAG, "Waiting for SNTP synchronization... Attempt %d", retry + 1);
+        vTaskDelay(pdMS_TO_TICKS(2000)); // Esperar 2 segundos antes del próximo intento
+    }
+
+    ESP_LOGE(TAG, "Failed to synchronize time with SNTP");
+    return false; // Sincronización fallida
+}  
+
 void app_main(void) {
 
     esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        /* NVS partition was truncated
-         * and needs to be erased */
-        ESP_ERROR_CHECK(nvs_flash_erase());
-
-        /* Retry nvs_flash_init */
-        ESP_ERROR_CHECK(nvs_flash_init());
-    }
-
-    ESP_ERROR_CHECK(ret);
+        
 
     init_i2c();
 
@@ -162,4 +197,58 @@ void app_main(void) {
     );
 
     sgp30_init(sgp30_event_loop_handle);
+    /*
+       
+// Initialize NVS
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+
+    ESP_LOGI(TAG, "NVS initialized successfully");
+
+    // Initialize Wi-Fi
+    ESP_LOGI(TAG, "Initializing Wi-Fi...");
+    wifi_init_sta();
+
+    // Wait for Wi-Fi connection
+    ESP_LOGI(TAG, "Waiting for Wi-Fi connection...");
+    int retries = 0;
+    while (retries < 20) {
+        if (esp_wifi_connect() == ESP_OK) {
+            ESP_LOGI(TAG, "Wi-Fi connected successfully!");
+            break;
+        }
+        retries++;
+        ESP_LOGI(TAG, "Retrying Wi-Fi connection... Attempt %d", retries);
+        vTaskDelay(pdMS_TO_TICKS(2000));
+    }
+
+    if (retries == 20) {
+        ESP_LOGE(TAG, "Failed to connect to Wi-Fi after multiple attempts");
+        return; // Stop execution if Wi-Fi connection fails
+    }
+
+    // Attempt SNTP synchronization
+    if (!obtain_time()) {
+        ESP_LOGE(TAG, "SNTP synchronization failed after multiple attempts");
+        return; // Stop execution if SNTP synchronization fails
+    }
+
+    // Continue with the rest of the application logic
+    ESP_LOGI(TAG, "Application logic continues...");
+
+    
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        // NVS partition was truncated and needs to be erased 
+         
+        ESP_ERROR_CHECK(nvs_flash_erase());
+
+        //Retry nvs_flash_init 
+        ESP_ERROR_CHECK(nvs_flash_init());
+    }
+
+    ESP_ERROR_CHECK(ret);
+*/
 }
