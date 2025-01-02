@@ -4,9 +4,10 @@
 
 typedef enum {
     MQTT_RECONNECT_WITH_TOKEN,
-} mqtt_event_t;
+    MQTT_NEW_SEND_TIME,
+} mqtt_thingsboard_event_t;
 
-static void log_error_if_nonzero(const char *message, int error_code);
+void log_error_if_nonzero(const char *message, int error_code);
 
 //Function to work with the data received from the subscribed topics
 void received_data(cJSON *root, char* topic);
@@ -24,9 +25,9 @@ bool isProvision(cJSON *root, char* topic);
  * @param event_id The id for the received event.
  * @param event_data The data for the event, esp_mqtt_event_handle_t.
  */
-static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
+void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
 
 //Function that waits to be provision with access token and create the new mqtt client conection
 void mqtt_provision_task(void *pvParameters);
 
-void mqtt_init(char *thingsboard_url);
+void mqtt_init(char* thingsboard_url, esp_event_loop_handle_t loop);

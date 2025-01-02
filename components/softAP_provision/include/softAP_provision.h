@@ -8,6 +8,10 @@
 /* Signal Provision done events on this event-group */
 #define PROVISION_DONE_EVENT (1 << 0)
 
+typedef enum {
+    THINGSBOARD_URL_OBTAINED,
+} provision_event_t;
+
 #if CONFIG_EXAMPLE_PROV_SECURITY_VERSION_2
 #if CONFIG_EXAMPLE_PROV_SEC2_DEV_MODE
 #define EXAMPLE_PROV_SEC2_USERNAME          "wifiprov"

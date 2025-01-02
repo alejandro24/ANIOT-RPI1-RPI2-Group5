@@ -25,6 +25,8 @@ static char* TAG = "MAIN";
 i2c_master_bus_handle_t bus_handle;
 i2c_master_dev_handle_t sgp30;
 esp_event_loop_handle_t sgp30_event_loop_handle;
+esp_event_loop_handle_t mqtt_thingsboard_event_loop_handle;
+static int send_time = 30;
 static EventGroupHandle_t provision_event_group;
 
 static void sgp30_event_handler(
@@ -70,6 +72,14 @@ static void sgp30_event_handler(
             break;
     }
 }
+
+static void new_send_time_event_handler(
+    void * handler_args,
+    esp_event_base_t base,
+    int32_t event_id,
+    void *event_data){
+        send_time = *(int*) event_data;
+    }
 
 // wifi handler to take actions for the different wifi events
 static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
@@ -130,11 +140,6 @@ void init_i2c(void)
     sntp_setservername(0, "216.239.35.4"); // Puedes usar otro servidor NTP si lo deseas
     sntp_init();
 }
-  
-
-
-
- 
 
 bool obtain_time() {
     initialize_sntp();
@@ -198,6 +203,27 @@ void app_main(void) {
     );
 
     sgp30_init(sgp30_event_loop_handle);
+
+    esp_event_loop_args_t mqtt_thingsboard_event_loop_args = {
+        .queue_size =5,
+        .task_name = "mqtt_thingsboard_event_loop_task", /* since it is a task it can be stopped */
+        .task_stack_size = 4096,
+        .task_priority = uxTaskPriorityGet(NULL),
+        .task_core_id = tskNO_AFFINITY,
+    };
+
+    esp_event_loop_create(&mqtt_thingsboard_event_loop_args, &mqtt_thingsboard_event_loop_handle);
+    ESP_ERROR_CHECK(
+        esp_event_handler_register_with(
+            mqtt_thingsboard_event_loop_handle,
+            MQTT_THINGSBOARD_EVENTS,
+            MQTT_NEW_SEND_TIME,
+            mqtt_event_handler,
+            NULL
+        )
+    );
+
+    mqtt_init(null, mqtt_thingsboard_event_loop_handle);
     /*
        
 // Initialize NVS

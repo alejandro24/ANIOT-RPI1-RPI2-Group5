@@ -15,14 +15,15 @@
 #include "mqtt_client.h"
 #include "mqtt.h"
 
+ESP_EVENT_DEFINE_BASE(MQTT_THINGSBOARD_EVENTS);
+
 static const char *TAG = "mqtt_thingsboard";
-static SemaphoreHandle_t mutex; 
+static esp_event_loop_handle_t mqtt_thingsboard_event_loop_handle;
 esp_mqtt_client_handle_t client;
 static QueueHandle_t mqtt_event_queue;  // Cola para manejar eventos
 static char access_token[40];
-static int send_time = 15; //15 segundos de sendtime por defecto
 
-static void log_error_if_nonzero(const char *message, int error_code)
+void log_error_if_nonzero(const char *message, int error_code)
 {
     if (error_code != 0) {
         ESP_LOGE(TAG, "Last error %s: 0x%x", message, error_code);
@@ -31,13 +32,14 @@ static void log_error_if_nonzero(const char *message, int error_code)
 
 void received_data(cJSON *root, char* topic){
     cJSON *item; 
+    int send_time;
     if(strcmp(topic, "v1/devices/me/attributes") == 0){
         if(cJSON_HasObjectItem(root, "send_time")){
-            if (xSemaphoreTake(mutex, portMAX_DELAY)) {
-                item = cJSON_GetObjectItem(root, "send_time");
-                if(cJSON_IsNumber(item))
-                    send_time = item->valueint;
-                xSemaphoreGive(mutex);
+            item = cJSON_GetObjectItem(root, "send_time");
+            if(cJSON_IsNumber(item)){
+                send_time = item->valueint;
+                ESP_ERROR_CHECK(
+                    esp_event_post(MQTT_THINGSBOARD_EVENTS, MQTT_NEW_SEND_TIME, &send_time, sizeof(send_time), portMAX_DELAY));
             }
         }
     }
@@ -56,7 +58,7 @@ bool isProvision(cJSON *root, char* topic){
     return false;
 }
 
-static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
+void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
     ESP_LOGD(TAG, "Event dispatched from event loop base=%s, event_id=%" PRIi32 "", base, event_id);
     esp_mqtt_event_handle_t event = event_data;
@@ -163,9 +165,10 @@ void mqtt_provision_task(void *pvParameters) {
     }
 }
 
-static void mqtt_init(char* thingsboard_url)
+void mqtt_init(char* thingsboard_url, esp_event_loop_handle_t loop)
 {
     mqtt_event_queue = xQueueCreate(10, sizeof(mqtt_event_t));
+    mqtt_thingsboard_event_loop_handle = loop;
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker.address.uri = thingsboard_url,
         .broker.address.port = 1883,
