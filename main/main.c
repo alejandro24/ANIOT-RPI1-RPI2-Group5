@@ -12,6 +12,7 @@
 #include <nvs_flash.h>
 #include "sntp_sync.h"  // Include the SNTP component
 #include "wifi.h"
+#include "mqtt.h"
 #include <stdio.h>
 
 
