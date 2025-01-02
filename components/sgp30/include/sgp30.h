@@ -1,7 +1,9 @@
 #ifndef SGP30_H
 #define SGP30_H
 
+#include "driver/i2c_types.h"
 #include "esp_err.h"
+#include "nvs_flash.h"
 #include "esp_event.h"
 #include "esp_event_base.h"
 #include "driver/i2c_master.h"
@@ -12,12 +14,16 @@
 #define SGP30_CRC_8_POLY ((uint8_t) 0x31) /* CRC-8 generator polynomial */
 #define SGP30_CRC_8_INIT ((uint8_t) 0xFF) /* CRC-8 generator polynomial */
 
+#define MAX_QUEUE_SIZE 12
+#define ZERO_OUT_QUEUE_ON_DEQUEUE
+
 typedef enum {
     SENSOR_EVENT_NEW_MEASUREMENT,
-    SENSOR_IAQ_INITIALIZING,
-    SENSOR_IAQ_INITIALIZED,
-    SENSOR_GOT_BASELINE,
-} mox_event_id_t ;
+    SENSOR_EVENT_IAQ_INITIALIZING,
+    SENSOR_EVENT_IAQ_INITIALIZED,
+    SENSOR_EVENT_NEW_BASELINE,
+    SENSOR_EVENT_BASELINE_SET,
+} sgp30_event_id_t ;
 // SGP30 register write only addresses
 typedef enum {
     SGP30_REG_GET_SERIAL_ID = 0x3682,
@@ -41,12 +47,28 @@ typedef struct {
 } sgp30_measurement_t;
 
 typedef struct {
-    sgp30_measurement_t baseline;
-    time_t timestamp;
-} sgp30_baseline_t;
+    time_t tv;
+    sgp30_measurement_t measurements;
+} sgp30_log_entry_t;
+
+typedef struct {
+    size_t head;
+    size_t size;
+    sgp30_log_entry_t measurements[MAX_QUEUE_SIZE];
+} sgp30_log_t;
 
 ESP_EVENT_DECLARE_BASE(SENSOR_EVENTS);
 
+esp_err_t sgp30_measurement_to_log_entry(const sgp30_measurement_t *in_measurement, const time_t *now, sgp30_log_entry_t *out_log_entry);
+esp_err_t sgp30_log_entry_to_valid_baseline_or_null(const sgp30_log_entry_t *in_log_entry, sgp30_measurement_t *out_measurement);
+
+esp_err_t sgp30_measurement_enqueue(
+    const sgp30_log_entry_t *m,
+    sgp30_log_t *q);
+
+esp_err_t sgp30_measurement_dequeue(
+    sgp30_log_entry_t *m,
+    sgp30_log_t *q);
 /**
  * @brief Creates a handle for the SGP30 device on the specified I2C bus.
  *
@@ -82,7 +104,10 @@ esp_err_t sgp30_device_delete(i2c_master_dev_handle_t dev_handle);
 /**
  * UNDOCUMENTED
  */
-esp_err_t sgp30_init(esp_event_loop_handle_t loop);
+esp_err_t sgp30_init(
+    esp_event_loop_handle_t loop,
+    sgp30_measurement_t *baseline
+);
 /**
  * UNDOCUMENTED
  */
@@ -114,8 +139,13 @@ esp_err_t sgp30_init_air_quality();
  *     - ESP_FAIL: Communication with the sensor failed
  *     - ESP_ERR_INVALID_CRC: Received wrong chechsum
  */
-esp_err_t sgp30_measure_air_quality();
+esp_err_t sgp30_measure_air_quality(i2c_master_dev_handle_t dev_handle, sgp30_measurement_t *new_measurement);
+esp_err_t sgp30_get_baseline(i2c_master_dev_handle_t dev_handle, sgp30_measurement_t *baseline);
+esp_err_t sgp30_set_baseline(i2c_master_dev_handle_t dev_hanlde, const sgp30_measurement_t *baseline);
 
+esp_err_t sgp30_measure_air_quality_and_post_esp_event();
+esp_err_t sgp30_get_baseline_and_post_esp_event();
+esp_err_t sgp30_set_baseline_and_post_esp_event();
 /**
  * @brief Retrieve the ID from the SGP30 sensor.
  *
@@ -134,7 +164,5 @@ esp_err_t sgp30_get_id();
 /**
  * TODO DOCUMENTATION
     */
-esp_err_t sgp30_get_baseline();
-esp_err_t sgp30_set_baseline();
 
 #endif
