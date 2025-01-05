@@ -16,9 +16,9 @@
 #include <time.h>
 #include "sgp30.h"
 
-ESP_EVENT_DEFINE_BASE(SENSOR_EVENTS);
+ESP_EVENT_DEFINE_BASE(SGP30_EVENT);
 
-#define SGP30_MEASURING_INTERVAL (1 * 1000 * 1000)
+#define SGP30_MEASURING_INTERVAL (1 * 1000 * 1000) //Measure each second
 #define SGP30_BASELINE_VALIDITY_TIME (60 * 60 * 1000 * 1000)
 #define SGP30_BASELINE_UPDATE_INTERVAL (30 * 1000000)
 #define SGP30_FIRST_BASELINE_WAIT_TIME (60 * 1000000)
@@ -26,11 +26,117 @@ ESP_EVENT_DEFINE_BASE(SENSOR_EVENTS);
 static char* TAG = "SGP30";
 static esp_event_loop_handle_t sgp30_event_loop;
 static i2c_master_dev_handle_t sgp30_dev_handle;
-static esp_timer_handle_t g_update_baseline_timer_handle;
-static bool g_sgp30_has_baseline;
-static esp_timer_handle_t g_measurement_timer_handle;
+static sgp30_aggregate_t sgp30_measurement_aggregate;
+static esp_timer_handle_t sgp30_update_baseline_timer_handle;
+static esp_timer_handle_t sgp30_acquire_baseline_timer_handle;
+static sgp30_state_t sgp30_state;
+static TaskHandle_t sgp30_operation_task_handle;
+static esp_timer_handle_t sgp30_measurement_timer_handle;
+static uint32_t g_measurement_interval;
+static SemaphoreHandle_t g_measurement_interval_mutex;
 static SemaphoreHandle_t device_in_use_mutex;
 static uint16_t id[3];
+
+void sgp30_on_new_measurement(
+    void * handler_args,
+    esp_event_base_t base,
+    int32_t event_id,
+    void *event_data
+) {
+    sgp30_measurement_t new_measurement;
+    time_t now;
+    sgp30_log_entry_t new_log_entry;
+    time(&now);
+    new_measurement = *((sgp30_measurement_t*) event_data);
+    ESP_LOGI(TAG, "Measured eCO2= %d TVOC= %d", new_measurement.eCO2, new_measurement.TVOC);
+    sgp30_measurement_to_log_entry(&new_measurement, &now, &new_log_entry);
+    //sgp30_measurement_enqueue(&new_log_entry, &sgp30_log);
+}
+
+void sgp30_on_new_baseline(
+    void * handler_args,
+    esp_event_base_t base,
+    int32_t event_id,
+    void *event_data
+) {
+    time_t now;
+    sgp30_log_entry_t new_baseline;
+    time(&now);
+    sgp30_measurement_to_log_entry(
+        (sgp30_measurement_t*) event_data,
+        &now,
+        &new_baseline
+    );
+
+    ESP_LOGI(
+        TAG,
+        "Baseline eCO2= %d TVOC= %d at timestamp %s",
+        new_baseline.measurements.eCO2,
+        new_baseline.measurements.TVOC,
+        ctime(&new_baseline.tv)
+    );
+}
+
+void sgp30_operation_task(void *args) {
+    uint32_t elapsed_secs = 0;
+    sgp30_measurement_t *baseline_handle;
+    baseline_handle = ((sgp30_measurement_t*) args);
+    sgp30_measurement_t last_measurement;
+    sgp30_measurement_t baseline;
+    sgp30_state = SGP30_STATE_INITIALIZING;
+    while(true) {
+        // We wait for a signal from the timer or 1 sec as fallback
+        elapsed_secs = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1000));
+        switch (sgp30_state) {
+            case SGP30_STATE_INITIALIZING:
+                sgp30_measure_air_quality(sgp30_dev_handle, &last_measurement);
+                if (last_measurement.eCO2 != 400) {
+                    ESP_LOGE(TAG, "Wrong eCO2 returned");
+                }
+                if (last_measurement.TVOC != 0) {
+                    ESP_LOGE(TAG, "Wrong TVOC returned");
+                }
+                if (elapsed_secs == 15) {
+                    if (baseline_handle == NULL) {
+                        sgp30_state = SGP30_STATE_BASELINE_ACQUISITION;
+                    } else {
+                        sgp30_set_baseline(sgp30_dev_handle, &baseline);
+                        if (pdTRUE == xTaskNotifyStateClear(xTaskGetCurrentTaskHandle())) {
+                            ESP_LOGE(TAG, "I dont know");
+                        }
+                        sgp30_state = SGP30_STATE_FUNCTIONING;
+                    }
+                }
+                break;
+
+            case SGP30_STATE_BASELINE_ACQUISITION:
+                sgp30_measure_air_quality(sgp30_dev_handle, NULL);
+                if (elapsed_secs >= SGP30_FIRST_BASELINE_WAIT_TIME) {
+                    if (pdTRUE == xTaskNotifyStateClear(xTaskGetCurrentTaskHandle())) {
+                        ESP_LOGE(TAG, "I dont know");
+                    }
+                    sgp30_get_baseline_and_post_esp_event();
+                    sgp30_state = SGP30_STATE_FUNCTIONING;
+                }
+                break;
+
+            case SGP30_STATE_FUNCTIONING:
+                sgp30_measure_air_quality(sgp30_dev_handle, &last_measurement);
+                sgp30_update_aggregate(&sgp30_measurement_aggregate, &last_measurement);
+                if (elapsed_secs >= SGP30_BASELINE_UPDATE_INTERVAL) {
+                    if (pdTRUE == xTaskNotifyStateClear(xTaskGetCurrentTaskHandle())) {
+                        ESP_LOGE(TAG, "I dont know");
+                    }
+                    sgp30_get_baseline_and_post_esp_event();
+                }
+                break;
+
+            default:
+                ESP_LOGE(TAG, "Undefined");
+                break;
+        }
+    }
+}
 
 static esp_err_t crc8_check(uint8_t *buffer, size_t size) {
     uint8_t crc = SGP30_CRC_8_INIT;
@@ -76,7 +182,7 @@ static uint8_t crc8_gen(uint8_t *buffer, size_t size) {
 
 static esp_err_t sgp30_command_w(
     i2c_master_dev_handle_t dev_handle,
-    sgp30_register_rw_t command,
+    sgp30_register_w_t command,
     uint8_t write_delay,
     uint16_t *msg,
     size_t msg_len)
@@ -160,7 +266,26 @@ static esp_err_t sgp30_command_rw(
         );
     }
 
-    // Store the output into a uint16
+static void sgp30_acquire_baseline_callback(void* args) {
+
+    // [Unhandled]
+    ESP_RETURN_VOID_ON_ERROR(
+        sgp30_get_baseline_and_post_esp_event(),
+        TAG,
+        "Could not get baseline"
+    );
+
+    // [Unhandled]
+    ESP_RETURN_VOID_ON_ERROR(
+        esp_timer_start_periodic(
+            sgp30_update_baseline_timer_handle,
+            SGP30_BASELINE_UPDATE_INTERVAL),
+        TAG,
+        "Could not start timer"
+    );
+}
+
+    // Store e output into a uint16
     for (int i = 0; i < response_len; i++) {
         response[i] = (uint16_t) (response_buffer[i * 3] << 8) | response_buffer[3 * i + 1];
      }
@@ -168,123 +293,68 @@ static esp_err_t sgp30_command_rw(
     return ESP_OK;
 }
 
-static esp_err_t sgp30_set_or_update_baseline_interval(
-) {
-    uint64_t new_baseline_interval = (g_sgp30_has_baseline) ?
-        SGP30_FIRST_BASELINE_WAIT_TIME:
-        SGP30_BASELINE_UPDATE_INTERVAL;
-    if (esp_timer_is_active(g_update_baseline_timer_handle)) {
-        ESP_RETURN_ON_ERROR(
-            esp_timer_restart(
-                g_update_baseline_timer_handle,
-                new_baseline_interval
-            ),
-            TAG, "Could not update baseline timer"
-        );
-    } else {
-        ESP_RETURN_ON_ERROR(
-            esp_timer_start_once(
-                g_update_baseline_timer_handle,
-                new_baseline_interval
-            ),
-            TAG, "Could not start baseline timer"
-        );
-    }
-
-    return ESP_OK;
-}
-
 static void sgp30_update_baseline_callback(void* args) {
     ESP_ERROR_CHECK_WITHOUT_ABORT(sgp30_get_baseline_and_post_esp_event());
-    g_sgp30_has_baseline = true;
-    ESP_ERROR_CHECK(sgp30_set_or_update_baseline_interval());
 }
 
-static void sgp30_update_measurement_interval_event_handler(
+void sgp30_on_new_interval(
     void * handler_args,
     esp_event_base_t base,
     int32_t event_id,
     void *event_data
 ) {
-    uint64_t new_measurement_interval = *((uint64_t*) event_data);
-    if (esp_timer_is_active(g_update_baseline_timer_handle)) {
-        ESP_ERROR_CHECK(
-            esp_timer_restart(
-                g_measurement_timer_handle,
-                new_measurement_interval
-            )
-        );
-    } else {
-        ESP_ERROR_CHECK(
-            esp_timer_start_periodic(
-                g_measurement_timer_handle,
-                new_measurement_interval
-            )
-        );
-    }
+    uint32_t new_measurement_interval = *((uint32_t*) event_data);
+    g_measurement_interval = new_measurement_interval;
 }
 
-static void sgp30_measurement_callback(void* args) {
-    ESP_ERROR_CHECK_WITHOUT_ABORT(sgp30_measure_air_quality_and_post_esp_event());
+esp_err_t sgp30_update_aggregate(
+    sgp30_aggregate_t *aggregate,
+    const sgp30_measurement_t *new_measurement
+) {
+    if (aggregate->count == 0) {
+        aggregate->mean.eCO2 = new_measurement->eCO2;
+        aggregate->mean.TVOC = new_measurement->TVOC;
+        aggregate->count++;
+    } else if (aggregate->count < g_measurement_interval) {
+        //[WARN] maybe overflow!
+        aggregate->mean.eCO2 = (new_measurement->eCO2 + aggregate->mean.eCO2 * aggregate->count) / (aggregate->count + 1);
+        aggregate->mean.TVOC = (new_measurement->TVOC + aggregate->mean.TVOC * aggregate->count) / (aggregate->count + 1);
+        aggregate->count++;
+    } else {
+        aggregate->count = 0;
+        aggregate->mean.eCO2 = (new_measurement->eCO2 + aggregate->mean.eCO2 * aggregate->count) / (aggregate->count + 1);
+        aggregate->mean.TVOC = (new_measurement->TVOC + aggregate->mean.TVOC * aggregate->count) / (aggregate->count + 1);
+        ESP_RETURN_ON_ERROR(
+            esp_event_post_to(
+                sgp30_event_loop,
+                SGP30_EVENT,
+                SGP30_EVENT_NEW_MEASUREMENT,
+                &aggregate->mean,
+                sizeof(sgp30_measurement_t),
+                portMAX_DELAY
+            ),
+            TAG, "Could not post new measurement"
+        );
+    }
 }
 
 esp_err_t sgp30_init(
     esp_event_loop_handle_t loop,
     sgp30_measurement_t *baseline
 ) {
+    // Obtain the event loop from the main function
     sgp30_event_loop = loop;
 
+    // Subscribe to handle NEW_INTERVAL events
 
     ESP_RETURN_ON_ERROR(
         sgp30_init_air_quality(),
         TAG, "Could not initiate sensor"
     );
 
-    if (baseline == NULL) {
-        g_sgp30_has_baseline = false;
-        ESP_LOGI(TAG, "Baseline not in flash");
-        // If no baseline was stored do an initiation loop
-        sgp30_measurement_t default_value;
+    xTaskCreate(sgp30_operation_task, "sgp30 operation", 2048, baseline, 2, &sgp30_operation_task_handle);
 
-        for (int i =0; i < 15; i++) {
-            vTaskDelay(pdMS_TO_TICKS(998));
-            sgp30_measure_air_quality(sgp30_dev_handle, &default_value);
-            ESP_LOGI(TAG, "eC02 %d, TVOC %d", default_value.eCO2, default_value.TVOC);
-            // ESP_RETURN_ON_FALSE((default_value.eCO2 == 400), ESP_ERR_INVALID_STATE, TAG, "got wrong eCO2 default value");
-            // ESP_RETURN_ON_FALSE((default_value.TVOC == 0), ESP_ERR_INVALID_STATE, TAG, "got wrong TVOC devault value");
-        }
-        ESP_LOGI(TAG, "Initialization loop done");
-
-//         sgp30_measurement_t tmp_baseline;
-// 
-//         sgp30_get_baseline(sgp30_dev_handle, &tmp_baseline);
-//         sgp30_set_baseline(sgp30_dev_handle, &tmp_baseline);
-
-        ESP_RETURN_ON_ERROR(
-            sgp30_set_or_update_baseline_interval(),
-            TAG, "Could not set or update baseline timer"
-        );
-    } else {
-        g_sgp30_has_baseline = true;
-        ESP_LOGI(TAG, "Baseline in flash");
-        sgp30_set_baseline(sgp30_dev_handle, baseline);
-        // and update it each hour
-        // ESP_ERROR_CHECK(esp_timer_start_periodic(g_h_update_baseline_timer, 1 * 3600000000));
-        ESP_RETURN_ON_ERROR(
-            sgp30_set_or_update_baseline_interval(),
-            TAG, "Could not set or update baseline timer"
-        );
-    }
-
-    ESP_ERROR_CHECK(
-        esp_event_post_to(
-            sgp30_event_loop,
-            SENSOR_EVENTS,
-            SENSOR_EVENT_IAQ_INITIALIZED,
-            NULL,
-            0,
-            portMAX_DELAY)
-    );
+    esp_timer_start_periodic(sgp30_measurement_timer_handle, 1 * 1000 * 1000);
 
     return ESP_OK;
 }
@@ -294,11 +364,12 @@ esp_err_t sgp30_delete() {
     return ESP_OK;
 }
 
+// Created the device and allocate all needed structures.
 esp_err_t sgp30_device_create(
     i2c_master_bus_handle_t bus_handle,
     const uint16_t dev_addr,
-    const uint32_t dev_speed)
-{
+    const uint32_t dev_speed
+) {
     i2c_device_config_t dev_cfg = {
         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
         .device_address = dev_addr,
@@ -311,41 +382,11 @@ esp_err_t sgp30_device_create(
         i2c_master_bus_add_device(bus_handle, &dev_cfg, &sgp30_dev_handle),
         TAG, "Could not add device to I2C bus"
     );
-
-    // Create the timer for measurements.
-
-    esp_timer_create_args_t measuring_timer_args = {
-        .name = "measuring_timer",
-        .callback = sgp30_measurement_callback,
-    };
-
-    ESP_RETURN_ON_ERROR(
-        esp_timer_create(
-            &measuring_timer_args,
-            &g_measurement_timer_handle
-        ),
-        TAG, "Could not create measurement timer"
-    );
-
-    // Create the timer for baseline update
-
-    esp_timer_create_args_t update_baseline_timer_args = {
-        .name = "baseline_timer",
-        .callback = sgp30_update_baseline_callback,
-    };
-
-    ESP_RETURN_ON_ERROR(
-        esp_timer_create(
-            &update_baseline_timer_args,
-            &g_update_baseline_timer_handle),
-        TAG, "Could not create baseline timer"
-    );
-
     // Create the Mutex for access to the device
     // this will prevent asyncronous access to the resource
     // resulting in undefined behaviour.
-
-    vSemaphoreCreateBinary(device_in_use_mutex);
+    device_in_use_mutex = xSemaphoreCreateMutex();
+    ESP_RETURN_ON_FALSE(device_in_use_mutex, ESP_ERR_NO_MEM, TAG, "Could not create SGP30 mutex");
 
     return ESP_OK;
 }
@@ -360,7 +401,7 @@ esp_err_t sgp30_start_measuring()
 {
     ESP_RETURN_ON_ERROR(
         esp_timer_start_periodic(
-            g_measurement_timer_handle,
+            sgp30_measurement_timer_handle,
             SGP30_MEASURING_INTERVAL
         ),
         TAG, "Could not start measurement_timer"
@@ -384,8 +425,8 @@ esp_err_t sgp30_init_air_quality()
     ESP_RETURN_ON_ERROR(
         esp_event_post_to(
             sgp30_event_loop,
-            SENSOR_EVENTS,
-            SENSOR_EVENT_IAQ_INITIALIZING,
+            SGP30_EVENT,
+            SGP30_EVENT_IAQ_INITIALIZING,
             NULL,
             0,
             portMAX_DELAY),
@@ -432,8 +473,8 @@ esp_err_t sgp30_measure_air_quality_and_post_esp_event()
     ESP_RETURN_ON_ERROR(
         esp_event_post_to(
             sgp30_event_loop,
-            SENSOR_EVENTS,
-            SENSOR_EVENT_NEW_MEASUREMENT,
+            SGP30_EVENT,
+            SGP30_EVENT_NEW_MEASUREMENT,
             &new_measurement,
             sizeof(sgp30_measurement_t),
             portMAX_DELAY
@@ -505,8 +546,8 @@ esp_err_t sgp30_get_baseline_and_post_esp_event()
     ESP_RETURN_ON_ERROR(
         esp_event_post_to(
             sgp30_event_loop,
-            SENSOR_EVENTS,
-            SENSOR_EVENT_NEW_BASELINE,
+            SGP30_EVENT,
+            SGP30_EVENT_NEW_BASELINE,
             &tmp_baseline,
             sizeof(sgp30_measurement_t),
             portMAX_DELAY
@@ -542,6 +583,7 @@ esp_err_t sgp30_get_id()
 
     return ESP_OK;
 }
+
 esp_err_t sgp30_log_entry_to_valid_baseline_or_null(
     const sgp30_log_entry_t *in_log_entry,
     sgp30_measurement_t *out_measurement
@@ -556,6 +598,7 @@ esp_err_t sgp30_log_entry_to_valid_baseline_or_null(
     }
     return ESP_OK;
 }
+
 esp_err_t sgp30_measurement_to_log_entry(
     const sgp30_measurement_t *in_measurement,
     const time_t *now,

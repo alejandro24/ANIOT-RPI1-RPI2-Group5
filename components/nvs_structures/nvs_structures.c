@@ -67,6 +67,7 @@ esp_err_t nvs_get_baseline(
     sgp30_log_entry_t *baseline
 ) {
     size_t baseline_len;
+    baseline = NULL;
     ESP_RETURN_ON_ERROR(
         nvs_get_blob(
             handle,

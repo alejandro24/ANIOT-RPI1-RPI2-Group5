@@ -17,21 +17,33 @@
 #define MAX_QUEUE_SIZE 12
 #define ZERO_OUT_QUEUE_ON_DEQUEUE
 
+// States for the SGP30 FSM
+// - Once the device is returned from the create function it is uninitialized.
+// - 
 typedef enum {
-    SENSOR_EVENT_NEW_MEASUREMENT,
-    SENSOR_EVENT_IAQ_INITIALIZING,
-    SENSOR_EVENT_IAQ_INITIALIZED,
-    SENSOR_EVENT_NEW_BASELINE,
-    SENSOR_EVENT_BASELINE_SET,
+    SGP30_STATE_UNINITIAZED,
+    SGP30_STATE_INITIALIZING,
+    SGP30_STATE_INITIALIZED,
+    SGP30_STATE_BASELINE_ACQUISITION,
+    SGP30_STATE_FUNCTIONING,
+} sgp30_state_t;
+
+typedef enum {
+    SGP30_EVENT_NEW_MEASUREMENT,
+    SGP30_EVENT_IAQ_INITIALIZING,
+    SGP30_EVENT_IAQ_INITIALIZED,
+    SGP30_EVENT_NEW_BASELINE,
+    SGP30_EVENT_BASELINE_SET,
+    SGP30_EVENT_NEW_INTERVAL,
 } sgp30_event_id_t ;
+
 // SGP30 register write only addresses
 typedef enum {
-    SGP30_REG_GET_SERIAL_ID = 0x3682,
+    SGP30_REG_INIT_AIR_QUALITY = 0x2003, /* */
 } sgp30_register_w_t ;
 
 // SGP30 register read and write addresses
 typedef enum {
-    SGP30_REG_INIT_AIR_QUALITY = 0x2003, /* */
     SGP30_REG_MEASURE_AIR_QUALITY = 0x2008, /* */
     SGP30_REG_GET_BASELINE = 0x2015, /* */
     SGP30_REG_SET_BASELINE = 0x201e, /* */
@@ -39,6 +51,7 @@ typedef enum {
     SGP30_REG_MEASURE_TEST = 0x2032, /* */
     SGP30_REG_GET_FEATURE_SET_VERSION = 0x202f, /* */
     SGP30_REG_MEASURE_RAW_SIGNALS = 0x2050, /* */
+    SGP30_REG_GET_SERIAL_ID = 0x3682,
 } sgp30_register_rw_t;
 
 typedef struct {
@@ -57,7 +70,14 @@ typedef struct {
     sgp30_log_entry_t measurements[MAX_QUEUE_SIZE];
 } sgp30_log_t;
 
-ESP_EVENT_DECLARE_BASE(SENSOR_EVENTS);
+typedef struct {
+    sgp30_measurement_t mean;
+    size_t count;
+} sgp30_aggregate_t;
+
+esp_err_t sgp30_update_aggregate(sgp30_aggregate_t *aggregate, const sgp30_measurement_t *new_measurement);
+
+ESP_EVENT_DECLARE_BASE(SGP30_EVENT);
 
 esp_err_t sgp30_measurement_to_log_entry(const sgp30_measurement_t *in_measurement, const time_t *now, sgp30_log_entry_t *out_log_entry);
 esp_err_t sgp30_log_entry_to_valid_baseline_or_null(const sgp30_log_entry_t *in_log_entry, sgp30_measurement_t *out_measurement);
@@ -100,6 +120,26 @@ esp_err_t sgp30_device_create(
  *     - ESP_ERR_INVALID_ARG: Invalid argument
  *     - ESP_FAIL: Failed to delete the device
  */
+void sgp30_on_new_measurement(
+    void * handler_args,
+    esp_event_base_t base,
+    int32_t event_id,
+    void *event_data
+);
+
+void sgp30_on_new_baseline(
+    void * handler_args,
+    esp_event_base_t base,
+    int32_t event_id,
+    void *event_data
+);
+
+void sgp30_on_new_interval(
+    void * handler_args,
+    esp_event_base_t base,
+    int32_t event_id,
+    void *event_data
+);
 esp_err_t sgp30_device_delete(i2c_master_dev_handle_t dev_handle);
 /**
  * UNDOCUMENTED

@@ -29,72 +29,6 @@ i2c_master_bus_handle_t bus_handle;
 i2c_master_dev_handle_t sgp30;
 esp_event_loop_handle_t sgp30_event_loop_handle;
 sgp30_log_t sgp30_log;
-// nvs required structures
-esp_event_loop_handle_t storage_event_loop_handle;
-// Communication event loop
-esp_event_loop_handle_t communication_event_loop_handle;
-
-
-static void sgp30_on_new_measurement(
-    void * handler_args,
-    esp_event_base_t base,
-    int32_t event_id,
-    void *event_data
-) {
-    sgp30_measurement_t new_measurement;
-    time_t now;
-    sgp30_log_entry_t new_log_entry;
-    time(&now);
-    new_measurement = *((sgp30_measurement_t*) event_data);
-    ESP_LOGI(TAG, "Measured eCO2= %d TVOC= %d", new_measurement.eCO2, new_measurement.TVOC);
-    sgp30_measurement_to_log_entry(&new_measurement, &now, &new_log_entry);
-    sgp30_measurement_enqueue(&new_log_entry, &sgp30_log);
-}
-
-static void sgp30_on_iaq_initialized(
-    void * handler_args,
-    esp_event_base_t base,
-    int32_t event_id,
-    void *event_data
-) {
-    ESP_LOGI(TAG, "SGP30 Initialized.");
-    sgp30_start_measuring();
-}
-
-static void sgp30_on_new_baseline(
-    void * handler_args,
-    esp_event_base_t base,
-    int32_t event_id,
-    void *event_data
-) {
-    time_t now;
-    sgp30_log_entry_t new_baseline;
-    time(&now);
-    sgp30_measurement_to_log_entry(
-        (sgp30_measurement_t*) event_data,
-        &now,
-        &new_baseline
-    );
-
-    ESP_LOGI(
-        TAG,
-        "Baseline eCO2= %d TVOC= %d at timestamp %s",
-        new_baseline.measurements.eCO2,
-        new_baseline.measurements.TVOC,
-        ctime(&new_baseline.tv)
-    );
-}
-static esp_err_t storage_invoke_get_baseline_command(
-    QueueHandle_t storage_sgp30_baseline_ipc_handler,
-    sgp30_log_entry_t *sgp30_baseline
-) {
-    if (xQueueReceive(storage_sgp30_baseline_ipc_handler, (void*) sgp30_baseline, portMAX_DELAY) != pdTRUE) {
-        ESP_LOGE(TAG, "Unexpected error waiting to retrieve baseline from storage");
-        return ESP_ERR_TIMEOUT;
-    } else {
-        return ESP_OK;
-    }
-}
 
 esp_err_t init_i2c(void)
 {
@@ -133,30 +67,6 @@ void app_main(void) {
     };
     esp_event_loop_create(&sgp30_event_loop_args, &sgp30_event_loop_handle);
 
-    // An event loop for storage related events
-
-    esp_event_loop_args_t storage_event_loop_args = {
-        .queue_size = 5,
-        .task_name = "storage_event_loop_task", /* since it is a task it can be stopped */
-        .task_stack_size = 4096,
-        .task_priority = uxTaskPriorityGet(NULL),
-        .task_core_id = tskNO_AFFINITY,
-    };
-
-    esp_event_loop_create(&storage_event_loop_args, &storage_event_loop_handle);
-
-    // An event loop for communication related events
-
-    esp_event_loop_args_t communication_event_loop_args = {
-        .queue_size = 5,
-        .task_name = "communication_event_loop_task", /* since it is a task it can be stopped */
-        .task_stack_size = 4096,
-        .task_priority = uxTaskPriorityGet(NULL),
-        .task_core_id = tskNO_AFFINITY,
-    };
-
-    esp_event_loop_create(&communication_event_loop_args, &communication_event_loop_handle);
-
     // We initiate the NVS module
 
     esp_err_t ret = nvs_flash_init();
@@ -171,36 +81,18 @@ void app_main(void) {
 
     ESP_ERROR_CHECK(ret);
 
-    // Set up communication for NVS module.
-    // QueueHandle_t storage_sgp30_baseline_queue = xQueueCreate(1, sizeof(sgp30_log_entry_t));
-
-
-    // ESP_ERROR_CHECK(
-    //     esp_event_handler_register_with(
-    //         storage_event_loop_handle,
-    //         STORAGE_EVENT,
-    //         STORAGE_COMMAND_RETURN_GET_BASELINE,
-    //         storage_command_return_get_baseline_event_handler,
-    //         &sgp30_baseline_queue
-    //     )
-    // );
-    // 
-    // [TODO]
-
-    // Initiate sgp30 module
 
     ESP_ERROR_CHECK(init_i2c());
     ESP_ERROR_CHECK(sgp30_device_create(bus_handle, SGP30_I2C_ADDR, 400000));
 
 
     // Set up event listeners for SGP30 module.
-
     ESP_ERROR_CHECK(
         esp_event_handler_register_with(
             sgp30_event_loop_handle,
-            SENSOR_EVENTS,
-            SENSOR_EVENT_IAQ_INITIALIZED,
-            sgp30_on_iaq_initialized,
+            SGP30_EVENT,
+            SGP30_EVENT_NEW_INTERVAL,
+            sgp30_on_new_interval,
             NULL
         )
     );
@@ -208,8 +100,8 @@ void app_main(void) {
     ESP_ERROR_CHECK(
         esp_event_handler_register_with(
             sgp30_event_loop_handle,
-            SENSOR_EVENTS,
-            SENSOR_EVENT_NEW_MEASUREMENT,
+            SGP30_EVENT,
+            SGP30_EVENT_NEW_MEASUREMENT,
             sgp30_on_new_measurement,
             NULL
         )
@@ -218,8 +110,8 @@ void app_main(void) {
     ESP_ERROR_CHECK(
         esp_event_handler_register_with(
             sgp30_event_loop_handle,
-            SENSOR_EVENTS,
-            SENSOR_EVENT_NEW_BASELINE,
+            SGP30_EVENT,
+            SGP30_EVENT_NEW_BASELINE,
             sgp30_on_new_baseline,
             NULL
         )
