@@ -5,6 +5,7 @@
 #include "esp_log.h"
 #include "esp_event.h"
 #include "esp_event_base.h"
+#include "esp_timer.h"
 #include "freertos/idf_additions.h"
 #include "freertos/projdefs.h"
 #include "portmacro.h"
@@ -36,6 +37,9 @@ static char* TAG = "MAIN";
 i2c_master_bus_handle_t bus_handle;
 i2c_master_dev_handle_t sgp30;
 esp_event_loop_handle_t sgp30_event_loop_handle;
+uint32_t sgp30_req_measurement_interval;
+esp_timer_handle_t sgp30_req_measurement_timer_handle;
+SemaphoreHandle_t sgp30_req_measurement;
 sgp30_log_t sgp30_log;
 uint16_t send_time = 30;
 static EventGroupHandle_t provision_event_group;
@@ -87,6 +91,64 @@ static void event_handler_got_ip(void* arg, esp_event_base_t event_base,
     ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
     ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
     mqtt_init(thingsboard_url, NULL);
+}
+static void sgp30_req_measurement_callback(void *args) {
+    sgp30_request_measurement();
+}
+
+static void sgp30_on_new_measurement(
+    void * handler_args,
+    esp_event_base_t base,
+    int32_t event_id,
+    void *event_data
+) {
+    sgp30_measurement_t new_measurement;
+    time_t now;
+    sgp30_log_entry_t new_log_entry;
+    time(&now);
+    new_measurement = *((sgp30_measurement_t*) event_data);
+    ESP_LOGI(TAG, "Measured eCO2= %d TVOC= %d", new_measurement.eCO2, new_measurement.TVOC);
+    sgp30_measurement_to_log_entry(&new_measurement, &now, &new_log_entry);
+    sgp30_measurement_enqueue(&new_log_entry, &sgp30_log);
+    // Send or store log_entry
+}
+
+static void sgp30_on_new_interval(
+    void * handler_args,
+    esp_event_base_t base,
+    int32_t event_id,
+    void *event_data
+) {
+    uint32_t new_measurement_interval = *((uint32_t*) event_data);
+    if (esp_timer_is_active(sgp30_req_measurement_timer_handle)) {
+        esp_timer_restart(sgp30_req_measurement_timer_handle, new_measurement_interval);
+    } else {
+        esp_timer_start_periodic(sgp30_req_measurement_timer_handle, new_measurement_interval);
+    }
+}
+
+static void sgp30_on_new_baseline(
+    void * handler_args,
+    esp_event_base_t base,
+    int32_t event_id,
+    void *event_data
+) {
+    time_t now;
+    sgp30_log_entry_t new_baseline;
+    time(&now);
+    sgp30_measurement_to_log_entry(
+        (sgp30_measurement_t*) event_data,
+        &now,
+        &new_baseline
+    );
+
+    ESP_LOGI(
+        TAG,
+        "Baseline eCO2= %d TVOC= %d at timestamp %s",
+        new_baseline.measurements.eCO2,
+        new_baseline.measurements.TVOC,
+        ctime(&new_baseline.tv)
+    );
 }
 
 esp_err_t init_i2c(void)
@@ -190,8 +252,16 @@ void app_main(void) {
     //     )
     // );
     // sgp30_log_entry_to_valid_baseline_or_null(&sgp30_last_stored_baseline, &sgp30_baseline);
+    esp_timer_create_args_t sgp30_req_measurement_timer_args = {
+        .callback = sgp30_req_measurement_callback,
+        .name = "request_measurement"
+    };
+    esp_timer_create(&sgp30_req_measurement_timer_args, &sgp30_req_measurement_timer_handle);
     // Init SGP30 sensor using obtained baseline
+    sgp30_req_measurement = xSemaphoreCreateBinary();
     sgp30_init(sgp30_event_loop_handle, NULL);
+    esp_timer_start_periodic(sgp30_req_measurement_timer_handle, 10000000);
+
        /* WIFI Y SNTP
      // Initialize NVS
     esp_err_t ret = nvs_flash_init();
