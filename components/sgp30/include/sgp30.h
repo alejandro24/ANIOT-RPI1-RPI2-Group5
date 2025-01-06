@@ -3,6 +3,7 @@
 
 #include "driver/i2c_types.h"
 #include "esp_err.h"
+#include "freertos/idf_additions.h"
 #include "nvs_flash.h"
 #include "esp_event.h"
 #include "esp_event_base.h"
@@ -19,11 +20,9 @@
 
 // States for the SGP30 FSM
 // - Once the device is returned from the create function it is uninitialized.
-// - 
 typedef enum {
     SGP30_STATE_UNINITIAZED,
     SGP30_STATE_INITIALIZING,
-    SGP30_STATE_INITIALIZED,
     SGP30_STATE_BASELINE_ACQUISITION,
     SGP30_STATE_FUNCTIONING,
 } sgp30_state_t;
@@ -106,6 +105,7 @@ esp_err_t sgp30_device_create(
     const uint16_t dev_addr,
     const uint32_t dev_speed);
 
+esp_err_t sgp30_request_measurement();
 /**
  * @brief Deletes the SGP30 device instance.
  *
@@ -120,26 +120,6 @@ esp_err_t sgp30_device_create(
  *     - ESP_ERR_INVALID_ARG: Invalid argument
  *     - ESP_FAIL: Failed to delete the device
  */
-void sgp30_on_new_measurement(
-    void * handler_args,
-    esp_event_base_t base,
-    int32_t event_id,
-    void *event_data
-);
-
-void sgp30_on_new_baseline(
-    void * handler_args,
-    esp_event_base_t base,
-    int32_t event_id,
-    void *event_data
-);
-
-void sgp30_on_new_interval(
-    void * handler_args,
-    esp_event_base_t base,
-    int32_t event_id,
-    void *event_data
-);
 esp_err_t sgp30_device_delete(i2c_master_dev_handle_t dev_handle);
 /**
  * UNDOCUMENTED
