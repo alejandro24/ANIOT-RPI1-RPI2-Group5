@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <string.h>
 #include "esp_event.h"
-#include <cJSON.h>
+#include "cJSON.h"
+
+ESP_EVENT_DEFINE_BASE(MQTT_THINGSBOARD_EVENTS);
 
 typedef enum {
     MQTT_RECONNECT_WITH_TOKEN,
@@ -31,4 +33,4 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 //Function that waits to be provision with access token and create the new mqtt client conection
 void mqtt_provision_task(void *pvParameters);
 
-void mqtt_init(char* thingsboard_url, char* main_access_token, esp_event_loop_handle_t loop);
+void mqtt_init(char* thingsboard_url, char* main_access_token);

@@ -1,3 +1,3 @@
 idf_component_register(SRCS "mqtt.c"
                        INCLUDE_DIRS "include"
-                       REQUIRES esp_event cjson)
+                       REQUIRES esp_event json mqtt)

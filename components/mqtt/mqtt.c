@@ -18,7 +18,6 @@
 ESP_EVENT_DEFINE_BASE(MQTT_THINGSBOARD_EVENTS);
 
 static const char *TAG = "mqtt_thingsboard";
-static esp_event_loop_handle_t mqtt_thingsboard_event_loop_handle;
 esp_mqtt_client_handle_t client;
 static QueueHandle_t mqtt_event_queue;  // Cola para manejar eventos
 //[NVS]
@@ -166,10 +165,9 @@ void mqtt_provision_task(void *pvParameters) {
     }
 }
 
-void mqtt_init(char* thingsboard_url, char* main_access_token, esp_event_loop_handle_t loop)
+void mqtt_init(char* thingsboard_url, char* main_access_token)
 {
     mqtt_event_queue = xQueueCreate(10, sizeof(mqtt_event_t));
-    mqtt_thingsboard_event_loop_handle = loop;
     if(main_access_token != NULL){
         strcpy(access_token, main_access_token);
     }

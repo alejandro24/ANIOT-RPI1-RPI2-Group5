@@ -37,7 +37,7 @@ i2c_master_bus_handle_t bus_handle;
 i2c_master_dev_handle_t sgp30;
 esp_event_loop_handle_t sgp30_event_loop_handle;
 sgp30_log_t sgp30_log;
-esp_event_loop_handle_t mqtt_thingsboard_event_loop_handle;
+uint16_t send_time = 30;
 static EventGroupHandle_t provision_event_group;
 char thingsboard_url[100]; 
 wifi_credentials_t *wifi_credentials;
@@ -85,9 +85,8 @@ static void event_handler_got_ip(void* arg, esp_event_base_t event_base,
                                 int32_t event_id, void* event_data)
 {
     ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
-    esp_event_loop_handle_t default_loop = esp_event_loop_get_default();
     ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
-    mqtt_init(thingsboard_url, default_loop);
+    mqtt_init(thingsboard_url, NULL);
 }
 
 esp_err_t init_i2c(void)
@@ -117,8 +116,6 @@ void app_main(void) {
     // We will use different event loops for each logic task following isolation principles
 
     // An event loop for sensoring related events
-    esp_event_loop_handle_t default_loop = esp_event_loop_get_default();
-    
     esp_event_loop_args_t sgp30_event_loop_args = {
         .queue_size = 5,
         .task_name = "sgp30_event_loop_task", /* since it is a task it can be stopped */
@@ -127,7 +124,7 @@ void app_main(void) {
         .task_core_id = tskNO_AFFINITY,
     };
     esp_event_loop_create(&sgp30_event_loop_args, &sgp30_event_loop_handle);
-
+     ESP_ERROR_CHECK(esp_event_loop_create_default());
     // We initiate the NVS module
     esp_err_t ret = nvs_flash_init();
 
@@ -167,8 +164,7 @@ void app_main(void) {
     );
 
         ESP_ERROR_CHECK(
-        esp_event_handler_register_with(
-            ,
+        esp_event_handler_register(
             MQTT_THINGSBOARD_EVENTS,
             MQTT_NEW_SEND_TIME,
             mqtt_event_handler,

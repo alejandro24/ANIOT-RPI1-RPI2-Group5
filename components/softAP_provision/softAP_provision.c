@@ -15,12 +15,14 @@
 #include <wifi_provisioning/manager.h>
 
 #include <wifi_provisioning/scheme_softap.h>
+#include "lwip/err.h"
+#include "lwip/sys.h"
 #include "qrcode.h"
 #include "softAP_provision.h"
 
 static const char *TAG = "softAP_provisioning";
 //[NVS]
-static char thingsboard_url[100];
+char *thingsboard_url;
 wifi_credentials_t *wifi_credentials;
 static EventGroupHandle_t provision_event_group;
 
@@ -62,14 +64,14 @@ void provision_event_handler(void* arg, esp_event_base_t event_base,
             ESP_LOGI(TAG, "Provisioning started");
             break;
         case WIFI_PROV_CRED_RECV: {
-            wifi_sta_config_t wifi_sta_cfg = (wifi_sta_config_t *)event_data;
+            wifi_sta_config_t *wifi_sta_cfg = (wifi_sta_config_t *)event_data;
             ESP_LOGI(TAG, "Received Wi-Fi credentials"
                         "\n\tSSID     : %s\n\tPassword : %s",
                         (const char *) wifi_sta_cfg->ssid,
                         (const char *) wifi_sta_cfg->password);
             strncpy(wifi_credentials->ssid, (const char *) wifi_sta_cfg->ssid, sizeof(wifi_credentials->ssid) - 1);
             wifi_credentials->ssid[sizeof(wifi_credentials->ssid) - 1] = '\0'; // Asegurar terminación en null
-            strncpy(wifi_credentials.password, wifi_sta_cfg->password, sizeof(wifi_credentials->password) - 1);
+            strncpy(wifi_credentials->password, (const char *) wifi_sta_cfg->password, sizeof(wifi_credentials->password) - 1);
             wifi_credentials->password[sizeof(wifi_credentials->password) - 1] = '\0'; // Asegurar terminación en null
             break;
         }
@@ -132,7 +134,8 @@ esp_err_t thingsboard_url_prov_data_handler(uint32_t session_id, const uint8_t *
 {
     if (inbuf) {
         ESP_LOGI(TAG, "Received data: %.*s", inlen, (char *)inbuf);
-        snprintf(thingsboard_url, sizeof(thingsboard_url), "%.*s", (int)inlen, (char *)inbuf);
+        //snprintf(thingsboard_url, sizeof(thingsboard_url), "%.*s", (int)inlen, (char *)inbuf);
+        strcpy(thingsboard_url, (char *)inbuf);
     }
     char response[] = "SUCCESS";
     *outbuf = (uint8_t *)strdup(response);
@@ -290,19 +293,12 @@ esp_err_t softAP_provision_init(EventGroupHandle_t event_group, char *main_thing
     }
     else{
         wifi_config_t wifi_config = {
-        .sta = {
-            .ssid = wifi_credentials->ssid,
-            .password = wifi_credentials->password,
-            /* Authmode threshold resets to WPA2 as default if password matches WPA2 standards (password len => 8).
-             * If you want to connect the device to deprecated WEP/WPA networks, Please set the threshold value
-             * to WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK and set the password with length and format matching to
-             * WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK standards.
-             */
-            .threshold.authmode = ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD,
-            .sae_pwe_h2e = ESP_WIFI_SAE_MODE,
-            .sae_h2e_identifier = EXAMPLE_H2E_IDENTIFIER,
-        },
-    };
+            .sta = {
+                    .threshold.authmode = WIFI_AUTH_WPA2_PSK,
+                },
+        };
+        memcpy(wifi_config.sta.ssid, wifi_credentials->ssid, strlen(wifi_credentials->ssid));
+        memcpy(wifi_config.sta.password, wifi_credentials->password, strlen(wifi_credentials->password));
         ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
         ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
         ESP_ERROR_CHECK(esp_wifi_start());

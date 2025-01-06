@@ -446,11 +446,7 @@ esp_err_t sgp30_measure_air_quality(i2c_master_dev_handle_t dev_handle, sgp30_me
             dev_handle,
             SGP30_REG_MEASURE_AIR_QUALITY,
             25,
-<<<<<<< HEAD
-            13,
-=======
             12,
->>>>>>> nvs-impl
             response_buffer,
             2
         ),
