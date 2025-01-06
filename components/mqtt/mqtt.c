@@ -8,8 +8,8 @@
 #include <freertos/task.h>
 #include "freertos/semphr.h"
 #include "esp_system.h"
-#include "esp_event.h"
-#include <cJSON.h>
+#include <esp_event.h>
+#include "cJSON.h"
 
 #include "esp_log.h"
 #include "mqtt_client.h"
@@ -21,6 +21,7 @@ static const char *TAG = "mqtt_thingsboard";
 static esp_event_loop_handle_t mqtt_thingsboard_event_loop_handle;
 esp_mqtt_client_handle_t client;
 static QueueHandle_t mqtt_event_queue;  // Cola para manejar eventos
+//[NVS]
 static char access_token[40];
 
 void log_error_if_nonzero(const char *message, int error_code)
@@ -165,14 +166,17 @@ void mqtt_provision_task(void *pvParameters) {
     }
 }
 
-void mqtt_init(char* thingsboard_url, esp_event_loop_handle_t loop)
+void mqtt_init(char* thingsboard_url, char* main_access_token, esp_event_loop_handle_t loop)
 {
     mqtt_event_queue = xQueueCreate(10, sizeof(mqtt_event_t));
     mqtt_thingsboard_event_loop_handle = loop;
+    if(main_access_token != NULL){
+        strcpy(access_token, main_access_token);
+    }
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker.address.uri = thingsboard_url,
         .broker.address.port = 1883,
-        .credentials.username = "provision",
+        .credentials.username = main_access_token == NULL ? "provision" : access_token,
     };
 
     xTaskCreate(mqtt_provision_task, "mqtt_task", 4096, thingsboard_url, 5, NULL);

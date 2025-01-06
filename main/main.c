@@ -1,4 +1,4 @@
-//#include "wifi_manager.h"
+#include <esp_wifi.h>
 #include "driver/i2c_types.h"
 #include "esp_check.h"
 #include "esp_err.h"
@@ -37,6 +37,58 @@ i2c_master_bus_handle_t bus_handle;
 i2c_master_dev_handle_t sgp30;
 esp_event_loop_handle_t sgp30_event_loop_handle;
 sgp30_log_t sgp30_log;
+esp_event_loop_handle_t mqtt_thingsboard_event_loop_handle;
+static EventGroupHandle_t provision_event_group;
+char thingsboard_url[100]; 
+wifi_credentials_t *wifi_credentials;
+
+static void new_send_time_event_handler(
+    void * handler_args,
+    esp_event_base_t base,
+    int32_t event_id,
+    void *event_data){
+        send_time = *(int*) event_data;
+    }
+
+// wifi handler to take actions for the different wifi events
+static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
+    static int retry_count = 0;
+    
+    switch (event_id) {
+        case WIFI_EVENT_STA_START:
+            ESP_LOGI(TAG, "Conectando a WiFi...");
+            esp_wifi_connect();  // Intenta la conexión
+            break;
+        case WIFI_EVENT_STA_CONNECTED:
+            retry_count = 0;  // Reseteamos el contador de reintentos
+            ESP_LOGI(TAG, "Conectado exitosamente al WiFi");
+            break;
+        case WIFI_EVENT_STA_DISCONNECTED:
+            ESP_LOGI(TAG, "Desconectado del WiFi, reintentando...");
+            if (retry_count < 5) {
+                int delay = (1 << retry_count) * 1000;  // Backoff exponencial (1s, 2s, 4s...)
+                ESP_LOGI(TAG, "Reintentando en %d ms...", delay);
+                vTaskDelay(pdMS_TO_TICKS(delay));  // Esperar antes de intentar nuevamente
+                esp_wifi_connect();
+                retry_count++;
+            } else {
+                ESP_LOGE(TAG, "No se pudo conectar al WiFi después de varios intentos.");
+                // Acciones adicionales si fallan todos los intentos
+            }
+            break;
+        default:
+            break;
+    }
+}
+
+static void event_handler_got_ip(void* arg, esp_event_base_t event_base,
+                                int32_t event_id, void* event_data)
+{
+    ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
+    esp_event_loop_handle_t default_loop = esp_event_loop_get_default();
+    ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
+    mqtt_init(thingsboard_url, default_loop);
+}
 
 esp_err_t init_i2c(void)
 {
@@ -65,7 +117,8 @@ void app_main(void) {
     // We will use different event loops for each logic task following isolation principles
 
     // An event loop for sensoring related events
-
+    esp_event_loop_handle_t default_loop = esp_event_loop_get_default();
+    
     esp_event_loop_args_t sgp30_event_loop_args = {
         .queue_size = 5,
         .task_name = "sgp30_event_loop_task", /* since it is a task it can be stopped */
@@ -76,10 +129,7 @@ void app_main(void) {
     esp_event_loop_create(&sgp30_event_loop_args, &sgp30_event_loop_handle);
 
     // We initiate the NVS module
-
     esp_err_t ret = nvs_flash_init();
-        
-
 
     ESP_ERROR_CHECK(init_i2c());
     ESP_ERROR_CHECK(sgp30_device_create(bus_handle, SGP30_I2C_ADDR, 400000));
@@ -115,6 +165,26 @@ void app_main(void) {
             NULL
         )
     );
+
+        ESP_ERROR_CHECK(
+        esp_event_handler_register_with(
+            ,
+            MQTT_THINGSBOARD_EVENTS,
+            MQTT_NEW_SEND_TIME,
+            mqtt_event_handler,
+            NULL
+        )
+    );
+
+    //TODO: Intentar sacar de nvs los datos de provisionamiento para pasarlos a el init de provisionamiento
+    wifi_credentials = (wifi_credentials_t*)(sizeof(wifi_credentials_t));
+    //Start the init of the provision component, we actively wait it to finish the provision to continue            
+    provision_event_group = xEventGroupCreate();
+    ESP_ERROR_CHECK(softAP_provision_init(provision_event_group, thingsboard_url, wifi_credentials));
+
+    /* Wait for Provision*/
+    xEventGroupWaitBits(provision_event_group, PROVISION_DONE_EVENT, true, true, portMAX_DELAY);
+    
     // Obtain baseline from NVS if available
     // sgp30_log_entry_t sgp30_last_stored_baseline;
     // ESP_ERROR_CHECK(

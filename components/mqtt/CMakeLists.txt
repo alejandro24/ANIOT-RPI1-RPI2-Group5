@@ -1,5 +1,3 @@
-# wifi_manager/CMakeLists.txt
-
-idf_component_register(SRCS "mqtt.c" "src/mqtt.c"
+idf_component_register(SRCS "mqtt.c"
                        INCLUDE_DIRS "include"
-                       REQUIRES  )
+                       REQUIRES esp_event cjson)
