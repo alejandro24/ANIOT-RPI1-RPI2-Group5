@@ -21,6 +21,7 @@
 
 static const char *TAG = "softAP_provisioning";
 static char thingsboard_url[100];
+wifi_credentials_t *wifi_credentials;
 static EventGroupHandle_t provision_event_group;
 
 #if CONFIG_EXAMPLE_PROV_SECURITY_VERSION_2
@@ -61,11 +62,15 @@ void provision_event_handler(void* arg, esp_event_base_t event_base,
             ESP_LOGI(TAG, "Provisioning started");
             break;
         case WIFI_PROV_CRED_RECV: {
-            wifi_sta_config_t *wifi_sta_cfg = (wifi_sta_config_t *)event_data;
+            wifi_sta_config_t wifi_sta_cfg = (wifi_sta_config_t *)event_data;
             ESP_LOGI(TAG, "Received Wi-Fi credentials"
                         "\n\tSSID     : %s\n\tPassword : %s",
                         (const char *) wifi_sta_cfg->ssid,
                         (const char *) wifi_sta_cfg->password);
+            strncpy(wifi_credentials->ssid, (const char *) wifi_sta_cfg->ssid, sizeof(wifi_credentials->ssid) - 1);
+            wifi_credentials->ssid[sizeof(wifi_credentials->ssid) - 1] = '\0'; // Asegurar terminación en null
+            strncpy(wifi_credentials.password, wifi_sta_cfg->password, sizeof(wifi_credentials->password) - 1);
+            wifi_credentials->password[sizeof(wifi_credentials->password) - 1] = '\0'; // Asegurar terminación en null
             break;
         }
         case WIFI_PROV_CRED_FAIL: {
@@ -170,9 +175,11 @@ void wifi_prov_print_qr(const char *name, const char *username, const char *pop,
     ESP_LOGI(TAG, "If QR code is not visible, copy paste the below URL in a browser.\n%s?data=%s", QRCODE_BASE_URL, payload);
 }
 
-esp_err_t softAP_provision_init(EventGroupHandle_t event_group){
+esp_err_t softAP_provision_init(EventGroupHandle_t event_group, char *main_thingsboard_url, wifi_credentials_t *main_wifi_credentials ){
 
     provision_event_group = event_group;
+    wifi_credentials = main_wifi_credentials;
+    thingsboard_url = main_thingsboard_url;
     
     /* Initialize TCP/IP */
     ESP_RETURN_ON_ERROR(esp_netif_init(), TAG, "Error iniciando TCP/IP");
@@ -187,7 +194,7 @@ esp_err_t softAP_provision_init(EventGroupHandle_t event_group){
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_RETURN_ON_ERROR(esp_wifi_init(&cfg), TAG, "Error iniciando la configuracion Wifi");
 
-        /* Configuration for the provisioning manager */
+    /* Configuration for the provisioning manager */
     wifi_prov_mgr_config_t config = {
         .scheme = wifi_prov_scheme_softap,
         /*This can be set to
