@@ -1,5 +1,4 @@
 #include <esp_wifi.h>
-#include "mqtt.h"
 #include "driver/i2c_types.h"
 #include "esp_check.h"
 #include "esp_err.h"
@@ -13,16 +12,15 @@
 #include "sgp30.h"
 #include "nvs_structures.h"
 #include "softAP_provision.h"
+#include "mqtt_controller.h"
 #include <stdint.h>
 #include <string.h>
 #include <nvs_flash.h>
 #include "sntp_sync.h"  // Include the SNTP component
 #include "wifi.h"
 #include "esp_netif.h"
-#include "protocol_examples_common.h"
 
 #include "esp_log.h"
-#include "mqtt_client.h"
 #include "esp_tls.h"
 #include <stdio.h>
 
@@ -234,7 +232,7 @@ void app_main(void) {
 
         ESP_ERROR_CHECK(
         esp_event_handler_register(
-            MQTT_THINGSBOARD_EVENTS,
+            MQTT_THINGSBOARD_EVENT,
             MQTT_NEW_SEND_TIME,
             mqtt_event_handler,
             NULL

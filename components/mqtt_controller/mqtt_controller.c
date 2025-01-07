@@ -18,15 +18,15 @@
 #include "esp_tls.h"
 #include "esp_ota_ops.h"
 #include <sys/param.h>
-#include "mqtt.h"
-
-ESP_EVENT_DEFINE_BASE(MQTT_THINGSBOARD_EVENTS);
+#include "mqtt_controller.h"
 
 static const char *TAG = "mqtt_thingsboard";
 esp_mqtt_client_handle_t client;
 static QueueHandle_t mqtt_event_queue;  // Cola para manejar eventos
 //[NVS]
 static char access_token[40];
+
+ESP_EVENT_DEFINE_BASE(MQTT_THINGSBOARD_EVENT);
 
 void log_error_if_nonzero(const char *message, int error_code)
 {
@@ -44,7 +44,7 @@ void received_data(cJSON *root, char* topic){
             if(cJSON_IsNumber(item)){
                 send_time = item->valueint;
                 ESP_ERROR_CHECK(
-                    esp_event_post(MQTT_THINGSBOARD_EVENTS, MQTT_NEW_SEND_TIME, &send_time, sizeof(send_time), portMAX_DELAY));
+                    esp_event_post(MQTT_THINGSBOARD_EVENT, MQTT_NEW_SEND_TIME, &send_time, sizeof(send_time), portMAX_DELAY));
             }
         }
     }
@@ -120,7 +120,7 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
         topic[event->topic_len] = '\0';
         if(isProvision(jsonData, topic)){
             // Enviar señal a la tarea de MQTT para reconectarse
-            mqtt_event_t reconnect_event = MQTT_RECONNECT_WITH_TOKEN;
+            mqtt_thingsboard_event_t reconnect_event = MQTT_RECONNECT_WITH_TOKEN;
             xQueueSend(mqtt_event_queue, &reconnect_event, portMAX_DELAY);
         }
         else{
@@ -146,7 +146,7 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 
 
 void mqtt_provision_task(void *pvParameters) {
-    mqtt_event_t event;
+    mqtt_thingsboard_event_t event;
     char* thingsboard_url = (char*)pvParameters;
     while (1) {
         if (xQueueReceive(mqtt_event_queue, &event, portMAX_DELAY)) {
@@ -172,7 +172,7 @@ void mqtt_provision_task(void *pvParameters) {
 
 void mqtt_init(char* thingsboard_url, char* main_access_token)
 {
-    mqtt_event_queue = xQueueCreate(10, sizeof(mqtt_event_t));
+    mqtt_event_queue = xQueueCreate(10, sizeof(mqtt_thingsboard_event_t));
     if(main_access_token != NULL){
         strcpy(access_token, main_access_token);
     }
