@@ -1,4 +1,5 @@
 #include <esp_wifi.h>
+#include "mqtt.h"
 #include "driver/i2c_types.h"
 #include "esp_check.h"
 #include "esp_err.h"
@@ -17,7 +18,12 @@
 #include <nvs_flash.h>
 #include "sntp_sync.h"  // Include the SNTP component
 #include "wifi.h"
-#include "mqtt.h"
+#include "esp_netif.h"
+#include "protocol_examples_common.h"
+
+#include "esp_log.h"
+#include "mqtt_client.h"
+#include "esp_tls.h"
 #include <stdio.h>
 
 
@@ -50,8 +56,9 @@ static void new_send_time_event_handler(
     void * handler_args,
     esp_event_base_t base,
     int32_t event_id,
-    void *event_data){
-        send_time = *(int*) event_data;
+    void *event_data) 
+    {
+    send_time = *(int*) event_data;
     }
 
 // wifi handler to take actions for the different wifi events
