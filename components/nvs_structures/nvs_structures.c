@@ -61,13 +61,16 @@ esp_err_t nvs_set_baseline(
     return ESP_OK;
 }
 
+// if (nvs_get_baseline(handle, &baseline) != ESP_OK) {
+//     asume que no puedes tocar ese baseline y inicia el sgp30 con un NULL
+// }
+
 esp_err_t nvs_get_baseline(
     nvs_handle_t handle,
     const char *key,
     sgp30_log_entry_t *baseline
 ) {
     size_t baseline_len;
-    baseline = NULL;
     ESP_RETURN_ON_ERROR(
         nvs_get_blob(
             handle,

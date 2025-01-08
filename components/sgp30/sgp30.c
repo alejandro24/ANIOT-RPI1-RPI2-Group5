@@ -19,7 +19,7 @@
 ESP_EVENT_DEFINE_BASE(SGP30_EVENT);
 
 #define SGP30_MEASURING_INTERVAL (1000 * 1000) //Measure each second
-#define SGP30_BASELINE_VALIDITY_TIME (60 * 60 * 1000 * 1000)
+#define SGP30_BASELINE_VALIDITY_TIME (7 * 24 * 60)
 #define SGP30_BASELINE_UPDATE_INTERVAL (30 * 1000000)
 #define SGP30_FIRST_BASELINE_WAIT_TIME (60 * 1000000)
 
@@ -48,12 +48,11 @@ void sgp30_on_sec_callback(void *args) {
 
 void sgp30_operation_task(void *args) {
     uint32_t elapsed_secs = 0;
-    sgp30_measurement_t *baseline_handle;
-    baseline_handle = ((sgp30_measurement_t*) args);
+    sgp30_measurement_t *baseline_handle = ((sgp30_measurement_t*) args);
     sgp30_measurement_t last_measurement;
     sgp30_measurement_t baseline;
     sgp30_state = SGP30_STATE_UNINITIAZED;
-    sgp30_start_measuring();
+    ESP_ERROR_CHECK(sgp30_start_measuring());
     while(true) {
         // We wait for a signal from the timer or 1 sec as fallback
         ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(10000));
@@ -61,7 +60,7 @@ void sgp30_operation_task(void *args) {
         ESP_LOGI(TAG, "%" PRIu32" seconds elapsed", elapsed_secs);
         switch (sgp30_state) {
             case SGP30_STATE_UNINITIAZED:
-                sgp30_init_air_quality();
+                sgp30_init_air_quality(sgp30_dev_handle);
                 elapsed_secs = 0;
                 sgp30_state = SGP30_STATE_INITIALIZING;
                 break;
@@ -110,7 +109,7 @@ void sgp30_operation_task(void *args) {
 
             case SGP30_STATE_FUNCTIONING:
                 sgp30_measure_air_quality(sgp30_dev_handle, &last_measurement);
-                ESP_LOGI(TAG, "Measured: eC02: %" PRIu16 "\tTVOC: %" PRIu16 "", last_measurement.eCO2, last_measurement.TVOC);
+                //ESP_LOGI(TAG, "Measured: eC02: %" PRIu16 "\tTVOC: %" PRIu16 "", last_measurement.eCO2, last_measurement.TVOC);
                 sgp30_update_aggregate(&sgp30_measurement_aggregate, &last_measurement);
                 // We check if the semaphore is set without blocking
                 if (xSemaphoreTake(sgp30_measurement_requested, 0) == pdTRUE) {
@@ -179,16 +178,19 @@ static uint8_t crc8_gen(uint8_t *buffer, size_t size) {
     return crc;
 }
 
-static esp_err_t sgp30_command_w(
+
+static esp_err_t sgp30_execute_command(
     i2c_master_dev_handle_t dev_handle,
-    sgp30_register_w_t command,
-    uint8_t write_delay,
+    sgp30_register_rw_t command,
     uint16_t *msg,
-    size_t msg_len)
+    size_t msg_len,
+    uint8_t write_delay,
+    uint16_t *response,
+    size_t response_len,
+    uint8_t read_delay)
 {
-    ESP_LOGE(TAG, "sent command %x", command);
     size_t msg_buffer_len = 2 + 3 * msg_len;
-    uint8_t msg_buffer[2 + msg_buffer_len];
+    uint8_t msg_buffer[msg_buffer_len];
     msg_buffer[0] = (command >> 8) & 0xFF;
     msg_buffer[1] = command  & 0xFF;
 
@@ -197,36 +199,6 @@ static esp_err_t sgp30_command_w(
         msg_buffer[3 * i + 3] = msg[i] & 0xFF;
         msg_buffer[3 * i + 4] = crc8_gen(msg_buffer + 2 + 3 * i, 2);
     }
-
-    xSemaphoreTake(device_in_use_mutex, portMAX_DELAY);
-
-    esp_err_t got_sent = i2c_master_transmit(dev_handle, msg_buffer, msg_buffer_len, -1);
-    if (got_sent != ESP_OK) {
-        xSemaphoreGive(device_in_use_mutex);
-        ESP_LOGE(TAG, "Could not write measure_air_quality");
-        return got_sent;
-    }
-    // The sensor needs a max of 12 ms to respond to the I2C read header.
-    vTaskDelay(pdMS_TO_TICKS(write_delay));
-
-    xSemaphoreGive(device_in_use_mutex);
-
-
-    return ESP_OK;
-}
-
-static esp_err_t sgp30_command_rw(
-    i2c_master_dev_handle_t dev_handle,
-    sgp30_register_rw_t command,
-    uint8_t write_delay,
-    uint8_t read_delay,
-    uint16_t *response,
-    size_t response_len)
-{
-
-    uint8_t command_buffer[2];
-    command_buffer[0] = (command >> 8) & 0xFF; /* Mask should be unnecessary */
-    command_buffer[1] = command & 0xFF; /* Mask should be unnecessary */
 
     // We need 2 bytes for each word and an extra one for the CRC
     size_t response_buffer_len = response_len * 3;
@@ -238,7 +210,7 @@ static esp_err_t sgp30_command_rw(
     // the device at the same time or in its calculation times.
     xSemaphoreTake(device_in_use_mutex, portMAX_DELAY);
 
-    esp_err_t got_sent = i2c_master_transmit(dev_handle, command_buffer, 2, -1);
+    esp_err_t got_sent = i2c_master_transmit(dev_handle, msg_buffer, 2, -1);
     if (got_sent != ESP_OK) {
         xSemaphoreGive(device_in_use_mutex);
         ESP_LOGE(TAG, "Could not write %x", command);
@@ -247,22 +219,32 @@ static esp_err_t sgp30_command_rw(
     // The sensor needs a max of 12 ms to respond to the I2C read header.
     vTaskDelay(pdMS_TO_TICKS(write_delay));
 
-    esp_err_t got_received = i2c_master_receive(dev_handle, response_buffer, response_buffer_len, -1);
-    if (got_received != ESP_OK) {
+    if (response_buffer_len != 0) {
+        esp_err_t got_received = i2c_master_receive(dev_handle, response_buffer, response_buffer_len, -1);
+        if (got_received != ESP_OK) {
+            xSemaphoreGive(device_in_use_mutex);
+            ESP_LOGE(TAG, "Could not read %x", command);
+            return got_received;
+        }
+
         xSemaphoreGive(device_in_use_mutex);
-        ESP_LOGE(TAG, "Could not read %x", command);
-        return got_received;
+
+        // Check received CRC's
+        for (int i = 0; i < response_len; i++) {
+            ESP_RETURN_ON_ERROR(
+                crc8_check(response_buffer + 3 * i, 3),
+                TAG, "I2C get %d item CRC failed", i
+            );
+        }
+        vTaskDelay(pdMS_TO_TICKS(read_delay));
+        // Store the output into a uint16
+        for (int i = 0; i < response_len; i++) {
+            response[i] = (uint16_t) (response_buffer[i * 3] << 8) | response_buffer[3 * i + 1];
+        }
+    } else {
+        xSemaphoreGive(device_in_use_mutex);
     }
 
-    xSemaphoreGive(device_in_use_mutex);
-
-    // Check received CRC's
-    for (int i = 0; i < response_len; i++) {
-        ESP_RETURN_ON_ERROR(
-            crc8_check(response_buffer + 3 * i, 3),
-            TAG, "I2C get %d item CRC failed", i
-        );
-    }
 
     return ESP_OK;
 }
@@ -302,8 +284,14 @@ esp_err_t sgp30_init(
 
     ESP_ERROR_CHECK(esp_timer_create(&measurement_timer_args, &sgp30_measurement_timer_handle));
 
-    xTaskCreate(sgp30_operation_task, "sgp30 operation", 2048, baseline, 2, &sgp30_operation_task_handle);
-
+    xTaskCreate(
+        sgp30_operation_task,
+        "sgp30_operation",
+        4096,
+        baseline,
+        2,
+        &sgp30_operation_task_handle
+    );
     if (sgp30_operation_task_handle == NULL) {
         return ESP_ERR_NO_MEM;
     }
@@ -361,16 +349,20 @@ esp_err_t sgp30_start_measuring()
     return ESP_OK;
 }
 
-esp_err_t sgp30_init_air_quality()
+esp_err_t sgp30_init_air_quality(i2c_master_dev_handle_t dev_handle)
 {
     ESP_LOGI(TAG, "Initiating");
     ESP_RETURN_ON_ERROR(
-        sgp30_command_w(
-            sgp30_dev_handle,
+        sgp30_execute_command(
+            dev_handle,
             SGP30_REG_INIT_AIR_QUALITY,
+            NULL,
+            0,
             12,
             NULL,
-            0),
+            0,
+            0
+        ),
         TAG, "Could not send INIT_AIR_QUALITY command"
     );
 
@@ -394,13 +386,15 @@ esp_err_t sgp30_measure_air_quality(i2c_master_dev_handle_t dev_handle, sgp30_me
     uint16_t response_buffer[2];
 
     ESP_RETURN_ON_ERROR(
-        sgp30_command_rw(
+        sgp30_execute_command(
             dev_handle,
             SGP30_REG_MEASURE_AIR_QUALITY,
+            NULL,
+            0,
             25,
-            12,
             response_buffer,
-            2
+            2,
+            12
         ),
         TAG, "Could not execute MEASURE_AIR_QUALITY command"
     );
@@ -447,12 +441,16 @@ esp_err_t sgp30_set_baseline(
     msg_buffer[1] = new_baseline->TVOC;
 
     ESP_RETURN_ON_ERROR(
-        sgp30_command_w(
-            sgp30_dev_handle,
+        sgp30_execute_command(
+            dev_handle,
             SGP30_REG_SET_BASELINE,
+            msg_buffer,
+            2,
             13,
             msg_buffer,
-            2),
+            2,
+            0
+        ),
         TAG, "Could not send SET_BASELINE command"
     );
 
@@ -467,13 +465,15 @@ esp_err_t sgp30_get_baseline(
     uint16_t response[2];
 
     ESP_RETURN_ON_ERROR(
-        sgp30_command_rw(
-            sgp30_dev_handle,
+        sgp30_execute_command(
+            dev_handle,
             SGP30_REG_GET_BASELINE,
-            12,
+            NULL,
+            0,
             12,
             response,
-            2
+            2,
+            12
         ),
         TAG, "Could not execute GET_BASELINE command"
     );
@@ -514,13 +514,15 @@ esp_err_t sgp30_get_id()
 {
     uint16_t response[3];
     ESP_RETURN_ON_ERROR(
-        sgp30_command_rw(
+        sgp30_execute_command(
             sgp30_dev_handle,
             SGP30_REG_GET_SERIAL_ID,
-            12,
+            NULL,
+            0,
             12,
             response,
-            3
+            3,
+            12
         ),
         TAG, "I2C get serial id write failed"
     );

@@ -27,12 +27,12 @@
 static char* TAG = "MAIN";
 // sgp30 required structures
 i2c_master_bus_handle_t bus_handle;
-i2c_master_dev_handle_t sgp30;
 esp_event_loop_handle_t sgp30_event_loop_handle;
 uint32_t sgp30_req_measurement_interval;
 esp_timer_handle_t sgp30_req_measurement_timer_handle;
 SemaphoreHandle_t sgp30_req_measurement;
 sgp30_log_t sgp30_log;
+
 static void sgp30_req_measurement_callback(void *args) {
     sgp30_request_measurement();
 }
@@ -191,10 +191,19 @@ void app_main(void) {
         .callback = sgp30_req_measurement_callback,
         .name = "request_measurement"
     };
+
     esp_timer_create(&sgp30_req_measurement_timer_args, &sgp30_req_measurement_timer_handle);
     // Init SGP30 sensor using obtained baseline
-    sgp30_req_measurement = xSemaphoreCreateBinary();
-    sgp30_init(sgp30_event_loop_handle, NULL);
+    // sgp30_log_entry_t maybe_baseline;
+    // if ( ESP_OK == nvs_get_log_entry(nvs_handle, SGP30_NVS_BASELINE_KEY, &maybe_baseline)) {
+    //     sgp30_measurement_t baseline;
+    //     sgp30_log_entry_to_valid_baseline_or_null(const sgp30_log_entry_t *in_log_entry, sgp30_measurement_t *out_measurement)
+    //     sgp30_init(sgp30_event_loop_handle, NULL);
+    // } else {
+        sgp30_init(sgp30_event_loop_handle, NULL);
+    // }
+    // Esto debería de iniciarse al tener un valor del intervalo, por MQTT (atributo compartido creo)
+    // Se inicia solo al mandar un evento SGP30_EVENT_NEW_INTERVAL
     esp_timer_start_periodic(sgp30_req_measurement_timer_handle, 10000000);
 
        /* WIFI Y SNTP

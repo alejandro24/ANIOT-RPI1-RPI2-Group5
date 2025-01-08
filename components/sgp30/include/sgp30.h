@@ -37,19 +37,16 @@ typedef enum {
 } sgp30_event_id_t ;
 
 // SGP30 register write only addresses
-typedef enum {
-    SGP30_REG_INIT_AIR_QUALITY = 0x2003, /* */
-} sgp30_register_w_t ;
-
 // SGP30 register read and write addresses
 typedef enum {
+    SGP30_REG_INIT_AIR_QUALITY = 0x2003, /* */
     SGP30_REG_MEASURE_AIR_QUALITY = 0x2008, /* */
     SGP30_REG_GET_BASELINE = 0x2015, /* */
     SGP30_REG_SET_BASELINE = 0x201e, /* */
-    SGP30_REG_SET_HUMIDITY = 0x2061, /* */
     SGP30_REG_MEASURE_TEST = 0x2032, /* */
     SGP30_REG_GET_FEATURE_SET_VERSION = 0x202f, /* */
     SGP30_REG_MEASURE_RAW_SIGNALS = 0x2050, /* */
+    SGP30_REG_SET_HUMIDITY = 0x2061, /* */
     SGP30_REG_GET_SERIAL_ID = 0x3682,
 } sgp30_register_rw_t;
 
@@ -58,11 +55,13 @@ typedef struct {
     uint16_t TVOC;
 } sgp30_measurement_t;
 
+// [NVS]
 typedef struct {
     time_t tv;
     sgp30_measurement_t measurements;
 } sgp30_log_entry_t;
 
+// [NVS]
 typedef struct {
     size_t head;
     size_t size;
@@ -144,7 +143,7 @@ esp_err_t sgp30_start_measuring();
  *     - ESP_FAIL: Communication with the sensor failed
  *     - ESP_ERR_INVALID_CRC: Received wrong chechsum
  */
-esp_err_t sgp30_init_air_quality();
+esp_err_t sgp30_init_air_quality(i2c_master_dev_handle_t dev_handle);
 
 /**
  * @brief Retrieve eCO2 and TVOC readings from the SGP30 sensor.
