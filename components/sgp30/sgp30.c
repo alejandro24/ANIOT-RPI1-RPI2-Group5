@@ -75,6 +75,8 @@ void sgp30_operation_task(void *args) {
                 }
                 if (elapsed_secs == 15) {
                     if (baseline_handle == NULL) {
+                        sgp30_get_baseline(sgp30_dev_handle, &baseline);
+                        sgp30_set_baseline(sgp30_dev_handle, &baseline);
                         sgp30_state = SGP30_STATE_BASELINE_ACQUISITION;
                     } else {
                         sgp30_set_baseline(sgp30_dev_handle, &baseline);
@@ -112,6 +114,7 @@ void sgp30_operation_task(void *args) {
                 //ESP_LOGI(TAG, "Measured: eC02: %" PRIu16 "\tTVOC: %" PRIu16 "", last_measurement.eCO2, last_measurement.TVOC);
                 sgp30_update_aggregate(&sgp30_measurement_aggregate, &last_measurement);
                 // We check if the semaphore is set without blocking
+                // podemos probar otras maneras
                 if (xSemaphoreTake(sgp30_measurement_requested, 0) == pdTRUE) {
                     ESP_LOGI(TAG, "Request Received");
                     ESP_ERROR_CHECK(
