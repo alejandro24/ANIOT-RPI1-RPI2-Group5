@@ -541,19 +541,15 @@ esp_err_t sgp30_get_id()
     return ESP_OK;
 }
 
-esp_err_t sgp30_log_entry_to_valid_baseline_or_null(
-    const sgp30_log_entry_t *in_log_entry,
-    sgp30_measurement_t *out_measurement
+bool sgp30_is_baseline_expired(
+    const time_t stored_time,
+    const time_t curr_time
 ) {
-    time_t now;
-    time(&now);
-    if (in_log_entry->tv + SGP30_BASELINE_VALIDITY_TIME > now) {
-        out_measurement->eCO2 = in_log_entry->measurements.eCO2;
-        out_measurement->TVOC = in_log_entry->measurements.TVOC;
+    if (stored_time + SGP30_BASELINE_VALIDITY_TIME > curr_time) {
+        return true;
     } else {
-        out_measurement = NULL;
+        return false;
     }
-    return ESP_OK;
 }
 
 esp_err_t sgp30_measurement_to_log_entry(

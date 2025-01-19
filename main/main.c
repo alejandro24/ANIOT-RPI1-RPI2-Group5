@@ -21,13 +21,11 @@
 #define DEVICE_SDA_IO_NUM 21
 #define DEVICE_SCL_IO_NUM 22
 
-#define SGP30_STORAGE_NAMESPACE "sgp30"
-#define SGP30_NVS_BASELINE_KEY "baseline"
 
 static char* TAG = "MAIN";
 // sgp30 required structures
-i2c_master_bus_handle_t bus_handle;
-esp_event_loop_handle_t sgp30_event_loop_handle;
+i2c_master_bus_handle_t i2c_master_bus_handle;
+esp_event_loop_handle_t imc_event_loop_handle;
 uint32_t sgp30_req_measurement_interval;
 esp_timer_handle_t sgp30_req_measurement_timer_handle;
 SemaphoreHandle_t sgp30_req_measurement;
@@ -43,14 +41,11 @@ static void sgp30_on_new_measurement(
     int32_t event_id,
     void *event_data
 ) {
-    sgp30_measurement_t new_measurement;
-    time_t now;
     sgp30_log_entry_t new_log_entry;
-    time(&now);
-    new_measurement = *((sgp30_measurement_t*) event_data);
-    ESP_LOGI(TAG, "Measured eCO2= %d TVOC= %d", new_measurement.eCO2, new_measurement.TVOC);
-    sgp30_measurement_to_log_entry(&new_measurement, &now, &new_log_entry);
-    sgp30_measurement_enqueue(&new_log_entry, &sgp30_log);
+    time(&new_log_entry.tv);
+    new_log_entry.measurements = *((sgp30_measurement_t*) event_data);
+    ESP_LOGI(TAG, "Measured eCO2= %d TVOC= %d", new_log_entry.measurements.eCO2, new_log_entry.measurements.TVOC);
+    // sgp30_measurement_enqueue(&new_log_entry, &sgp30_log);
     // Send or store log_entry
 }
 
@@ -74,15 +69,10 @@ static void sgp30_on_new_baseline(
     int32_t event_id,
     void *event_data
 ) {
-    time_t now;
     sgp30_log_entry_t new_baseline;
-    time(&now);
-    sgp30_measurement_to_log_entry(
-        (sgp30_measurement_t*) event_data,
-        &now,
-        &new_baseline
-    );
-
+    new_baseline.measurements = *((sgp30_measurement_t*) event_data),
+    time(&new_baseline.tv);
+    //storage_set
     ESP_LOGI(
         TAG,
         "Baseline eCO2= %d TVOC= %d at timestamp %s",
@@ -92,7 +82,7 @@ static void sgp30_on_new_baseline(
     );
 }
 
-esp_err_t init_i2c(void)
+static esp_err_t init_i2c(i2c_master_bus_handle_t *bus_handle)
 {
     i2c_master_bus_config_t i2c_bus_config = {
         .clk_source = I2C_CLK_SRC_DEFAULT,
@@ -106,7 +96,7 @@ esp_err_t init_i2c(void)
     ESP_RETURN_ON_ERROR(
         i2c_new_master_bus(
             &i2c_bus_config,
-            &bus_handle
+            bus_handle
         ),
         TAG,
         "Could not initialize new master bus"
@@ -114,44 +104,31 @@ esp_err_t init_i2c(void)
 
     return ESP_OK;
 }
+
 void app_main(void) {
 
-    // We will use different event loops for each logic task following isolation principles
 
-    // An event loop for sensoring related events
-
-    esp_event_loop_args_t sgp30_event_loop_args = {
+    esp_event_loop_args_t imc_event_loop_args = {
         .queue_size = 5,
         .task_name = "sgp30_event_loop_task", /* since it is a task it can be stopped */
         .task_stack_size = 4096,
         .task_priority = uxTaskPriorityGet(NULL),
         .task_core_id = tskNO_AFFINITY,
     };
-    esp_event_loop_create(&sgp30_event_loop_args, &sgp30_event_loop_handle);
-
-    // We initiate the NVS module
-
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        /* NVS partition was truncated
-         * and needs to be erased */
-        ESP_ERROR_CHECK(nvs_flash_erase());
-
-        /* Retry nvs_flash_init */
-        ESP_ERROR_CHECK(nvs_flash_init());
-    }
-
-    ESP_ERROR_CHECK(ret);
+    esp_event_loop_create(&imc_event_loop_args, &imc_event_loop_handle);
 
 
-    ESP_ERROR_CHECK(init_i2c());
-    ESP_ERROR_CHECK(sgp30_device_create(bus_handle, SGP30_I2C_ADDR, 400000));
+    ESP_ERROR_CHECK(storage_init());
+
+
+    ESP_ERROR_CHECK(init_i2c(&i2c_master_bus_handle));
+    ESP_ERROR_CHECK(sgp30_device_create(i2c_master_bus_handle, SGP30_I2C_ADDR, 400000));
 
 
     // Set up event listeners for SGP30 module.
     ESP_ERROR_CHECK(
         esp_event_handler_register_with(
-            sgp30_event_loop_handle,
+            imc_event_loop_handle,
             SGP30_EVENT,
             SGP30_EVENT_NEW_INTERVAL,
             sgp30_on_new_interval,
@@ -161,7 +138,7 @@ void app_main(void) {
 
     ESP_ERROR_CHECK(
         esp_event_handler_register_with(
-            sgp30_event_loop_handle,
+            imc_event_loop_handle,
             SGP30_EVENT,
             SGP30_EVENT_NEW_MEASUREMENT,
             sgp30_on_new_measurement,
@@ -171,37 +148,30 @@ void app_main(void) {
 
     ESP_ERROR_CHECK(
         esp_event_handler_register_with(
-            sgp30_event_loop_handle,
+            imc_event_loop_handle,
             SGP30_EVENT,
             SGP30_EVENT_NEW_BASELINE,
             sgp30_on_new_baseline,
             NULL
         )
     );
-    // Obtain baseline from NVS if available
-    // sgp30_log_entry_t sgp30_last_stored_baseline;
-    // ESP_ERROR_CHECK(
-    //     storage_invoke_get_baseline_command(
-    //         storage_sgp30_baseline_queue,
-    //         &sgp30_last_stored_baseline
-    //     )
-    // );
-    // sgp30_log_entry_to_valid_baseline_or_null(&sgp30_last_stored_baseline, &sgp30_baseline);
+
     esp_timer_create_args_t sgp30_req_measurement_timer_args = {
         .callback = sgp30_req_measurement_callback,
         .name = "request_measurement"
     };
 
     esp_timer_create(&sgp30_req_measurement_timer_args, &sgp30_req_measurement_timer_handle);
-    // Init SGP30 sensor using obtained baseline
-    // sgp30_log_entry_t maybe_baseline;
-    // if ( ESP_OK == nvs_get_log_entry(nvs_handle, SGP30_NVS_BASELINE_KEY, &maybe_baseline)) {
-    //     sgp30_measurement_t baseline;
-    //     sgp30_log_entry_to_valid_baseline_or_null(const sgp30_log_entry_t *in_log_entry, sgp30_measurement_t *out_measurement)
-    //     sgp30_init(sgp30_event_loop_handle, NULL);
-    // } else {
-        sgp30_init(sgp30_event_loop_handle, NULL);
-    // }
+    // At this point a valid time is required
+    // We start the sensor
+    sgp30_log_entry_t maybe_baseline;
+    time_t time_now;
+    time(&time_now);
+    if ( ESP_OK == storage_get(&maybe_baseline) && !sgp30_is_baseline_expired(maybe_baseline.tv, time_now)){
+        sgp30_init(imc_event_loop_handle, &maybe_baseline.measurements);
+    } else {
+        sgp30_init(imc_event_loop_handle, NULL);
+    }
     // Esto debería de iniciarse al tener un valor del intervalo, por MQTT (atributo compartido creo)
     // Se inicia solo al mandar un evento SGP30_EVENT_NEW_INTERVAL
     esp_timer_start_periodic(sgp30_req_measurement_timer_handle, 10000000);

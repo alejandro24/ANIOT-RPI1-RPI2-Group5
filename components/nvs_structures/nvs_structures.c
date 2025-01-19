@@ -1,79 +1,40 @@
+#include "nvs_structures.h"
 #include "nvs.h"
 #include "sgp30.h"
 #include "esp_err.h"
 #include "esp_check.h"
 #include "nvs_flash.h"
 
+#define SGP30_STORAGE_NAMESPACE "sgp30"
+#define SGP30_NVS_BASELINE_KEY "baseline"
 
 #define TAG "NVS"
+static nvs_handle_t storage_handle;
 
-
-esp_err_t nvs_get_sgp30_measurement_queue(
-    sgp30_log_t *q,
-    nvs_handle_t h)
-{
-    size_t measurement_size = 0;
-    ESP_RETURN_ON_ERROR(
-        nvs_get_blob(
-            h,
-            "measurements",
-            NULL,
-            &measurement_size
-        ),
-        TAG, "Could not retrieve measurement size from memory"
-    );
-
-    ESP_RETURN_ON_ERROR(
-        nvs_get_blob(h, "measurements", q, &measurement_size),
-        TAG,
-        "Could not retrieve measurements"
-    );
-    return ESP_OK;
+esp_err_t storage_init() {
+    return nvs_open("nvs", NVS_READWRITE, &storage_handle);
 }
 
-esp_err_t nvs_set_sgp30_measurement_queue(
-    sgp30_log_t *q,
-    nvs_handle_t h)
-{
-    size_t measurement_size = sizeof(sgp30_log_t);
-    ESP_RETURN_ON_ERROR(
-        nvs_set_blob(h, "measurements", q, measurement_size),
-        TAG,
-        "Could not retrieve measurements"
-    );
-    return ESP_OK;
-}
-
-esp_err_t nvs_set_baseline(
-    nvs_handle_t handle,
-    const char *key,
-    const sgp30_log_entry_t *baseline
+esp_err_t storage_get_sgp30_log_entry(
+    sgp30_log_entry_t *sgp30_log_entry_handle
 ) {
-    ESP_RETURN_ON_ERROR(
-        nvs_set_blob(
-            handle,
-            key,
-            baseline,
-            sizeof(sgp30_log_entry_t)
-        ),
-        TAG, "Could not set baseline to NVS"
-    );
-    return ESP_OK;
+    return nvs_get_sgp30_log_entry(sgp30_log_entry_handle);
 }
 
-// if (nvs_get_baseline(handle, &baseline) != ESP_OK) {
-//     asume que no puedes tocar ese baseline y inicia el sgp30 con un NULL
-// }
+esp_err_t storage_get_thingsboard_url(
+    thingsboard_url_t *thingsboard_url_handle
+) {
+    return nvs_get_thingsboard_url(thingsboard_url_handle);
+}
 
-esp_err_t nvs_get_baseline(
-    nvs_handle_t handle,
-    const char *key,
-    sgp30_log_entry_t *baseline
+esp_err_t nvs_get_sgp30_log_entry(
+    sgp30_log_entry_t *sgp30_log_entry_handle
 ) {
     size_t baseline_len;
+    char* key = SGP30_NVS_BASELINE_KEY;
     ESP_RETURN_ON_ERROR(
         nvs_get_blob(
-            handle,
+            storage_handle,
             key,
             NULL,
             &baseline_len
@@ -82,20 +43,37 @@ esp_err_t nvs_get_baseline(
     );
     ESP_RETURN_ON_ERROR(
         nvs_get_blob(
-            handle,
+            storage_handle,
             key,
-            baseline,
+            sgp30_log_entry_handle,
             &baseline_len
         ),
         TAG, "Could not get baseline from NVS"
     );
     return ESP_OK;
 }
-
-
-
-
-
-
-
-
+esp_err_t nvs_get_thingsboard_url(
+    thingsboard_url_t *thingsboard_url_handle
+) {
+    size_t thingsboard_url_len;
+    char* key = "thingsboard_url";
+    ESP_RETURN_ON_ERROR(
+        nvs_get_blob(
+            storage_handle,
+            key,
+            NULL,
+            &thingsboard_url_len
+        ),
+        TAG, "Could not get baseline len from NVS"
+    );
+    ESP_RETURN_ON_ERROR(
+        nvs_get_blob(
+            storage_handle,
+            key,
+            thingsboard_url_handle,
+            &thingsboard_url_len
+        ),
+        TAG, "Could not get baseline from NVS"
+    );
+    return ESP_OK;
+}

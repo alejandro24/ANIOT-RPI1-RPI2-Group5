@@ -77,7 +77,7 @@ esp_err_t sgp30_update_aggregate(sgp30_aggregate_t *aggregate, const sgp30_measu
 
 ESP_EVENT_DECLARE_BASE(SGP30_EVENT);
 
-esp_err_t sgp30_measurement_to_log_entry(const sgp30_measurement_t *in_measurement, const time_t *now, sgp30_log_entry_t *out_log_entry);
+bool sgp30_is_baseline_expired(time_t stored, time_t current);
 esp_err_t sgp30_log_entry_to_valid_baseline_or_null(const sgp30_log_entry_t *in_log_entry, sgp30_measurement_t *out_measurement);
 
 esp_err_t sgp30_measurement_enqueue(
