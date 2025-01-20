@@ -7,6 +7,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include "cJSON.h"
+#include "esp_err.h"
 #include "esp_system.h"
 #include "esp_partition.h"
 #include "freertos/idf_additions.h"
@@ -26,6 +27,7 @@
 
 #define MAX_ACCESS_TOKEN_LEN 40
 #define MAX_PROVISIONING_WAIT portMAX_DELAY
+#define THINGSBOARD_PROVISION_USERNAME "provision"
 #define DEVICE_ATTRIBUTES_TOPIC "v1/devices/me/attributes"
 #define PROVISION_REQUEST_TOPIC "/provision/request"
 #define PROVISION_RESPONSE_TOPIC "/provision/response"
@@ -35,6 +37,7 @@ esp_mqtt_client_handle_t client;
 static SemaphoreHandle_t is_provisioned;  // Cola para manejar eventos
 //[NVS]
 static char access_token[MAX_ACCESS_TOKEN_LEN];
+static size_t access_token_len;
 
 ESP_EVENT_DEFINE_BASE(MQTT_THINGSBOARD_EVENT);
 
@@ -161,7 +164,8 @@ bool isProvision(cJSON *root, char* topic, size_t topic_len){
         receive = cJSON_GetObjectItem(root, "status");
         if(strcmp(receive->valuestring, "SUCCESS") == 0){
             receive = cJSON_GetObjectItem(root, "credentialsValue");
-            strncpy(access_token, receive->valuestring, MAX_ACCESS_TOKEN_LEN);
+            strlen(receive->valuestring);
+            mqtt_set_access_token(receive->valuestring, strlen(receive->valuestring));
             return true;
         }
     }
@@ -233,12 +237,22 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 }
 
 
+esp_err_t mqtt_set_access_token(char* token, size_t token_len) {
+    if (token_len > MAX_ACCESS_TOKEN_LEN) {
+        return ESP_ERR_INVALID_SIZE;
+    } else {
+        access_token_len = token_len;
+        strncpy(access_token, token, token_len);
+        return ESP_OK;
+    }
+}
+
 esp_err_t mqtt_provision(char* thingsboard_url)
 {
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker.address.uri = thingsboard_url,
         .broker.address.port = 1883,
-        .credentials.username = NULL,
+        .credentials.username = THINGSBOARD_PROVISION_USERNAME,
     };
 
     is_provisioned = xSemaphoreCreateBinary();
