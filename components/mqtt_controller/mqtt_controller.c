@@ -20,6 +20,9 @@
 #include <sys/param.h>
 #include "mqtt_controller.h"
 
+extern const uint8_t server_pem_start[]   asm("_binary_server_pem_start");
+extern const uint8_t server_pem_end[]   asm("_binary_server_pem_end");
+
 static const char *TAG = "mqtt_thingsboard";
 esp_mqtt_client_handle_t client;
 static QueueHandle_t mqtt_event_queue;  // Cola para manejar eventos
@@ -61,6 +64,18 @@ bool isProvision(cJSON *root, char* topic){
         }
     }
     return false;
+}
+
+esp_err_t send_messure(long ts, uint16_t eCO2, uint16_t TVOC){
+    cJSON *jsonData = cJSON_CreateObject();
+    cJSON *measurement = cJSON_CreateObject();
+    cJSON_AddNumberToObject(jsonData, "ts", ts);
+    cJSON_AddNumberToObject(measurement, "eCO2", eCO2);
+    cJSON_AddNumberToObject(measurement, "TVOC", TVOC);
+    cJSON_AddItemToObjectCS(jsonData, "values", measurement);
+    ESP_ERROR_CHECK(esp_mqtt_client_publish(client, "v1/devices/me/telemetry", cJSON_PrintUnformatted(jsonData), 0, 1, 0));
+
+    return ESP_OK;
 }
 
 void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
@@ -127,6 +142,7 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
             received_data(jsonData, topic);
         }
         cJSON_Delete(jsonData);
+        free(topic);
         break;
     case MQTT_EVENT_ERROR:
         ESP_LOGI(TAG, "MQTT_EVENT_ERROR");
@@ -155,9 +171,12 @@ void mqtt_provision_task(void *pvParameters) {
                 esp_mqtt_client_stop(client);
                 esp_mqtt_client_destroy(client);
                 esp_mqtt_client_config_t mqtt_cfg = {
-                    .broker.address.uri = thingsboard_url,
+                    .broker{
+                        .address.uri = thingsboard_url,
+                        .verification.certificate = (const char *)mqtt_eclipseprojects_io_pem_start,
+                        .address.port = 1883,
+                    },
                     .credentials.username = access_token,
-                    .broker.address.port = 1883,
                 };
                 client = esp_mqtt_client_init(&mqtt_cfg);
                 /* The last argument may be used to pass data to the event handler, in this example mqtt_event_handler */
@@ -172,17 +191,21 @@ void mqtt_provision_task(void *pvParameters) {
 
 void mqtt_init(char* thingsboard_url, char* main_access_token)
 {
-    mqtt_event_queue = xQueueCreate(10, sizeof(mqtt_thingsboard_event_t));
-    if(main_access_token != NULL){
-        strcpy(access_token, main_access_token);
-    }
     esp_mqtt_client_config_t mqtt_cfg = {
-        .broker.address.uri = thingsboard_url,
-        .broker.address.port = 1883,
+        .broker{
+            .address.uri = thingsboard_url,
+            .address.port = 1883,
+            .verification.certificate = (const char *)mqtt_eclipseprojects_io_pem_start,
+        },
         .credentials.username = main_access_token == NULL ? "provision" : access_token,
     };
 
-    xTaskCreate(mqtt_provision_task, "mqtt_task", 4096, thingsboard_url, 5, NULL);
+    if(main_access_token != NULL){
+        strcpy(access_token, main_access_token);
+        mqtt_event_queue = xQueueCreate(10, sizeof(mqtt_thingsboard_event_t));
+        xTaskCreate(mqtt_provision_task, "mqtt_task", 4096, thingsboard_url, 5, NULL);
+    }
+
     client = esp_mqtt_client_init(&mqtt_cfg);
     /* The last argument may be used to pass data to the event handler, in this example mqtt_event_handler */
     esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);

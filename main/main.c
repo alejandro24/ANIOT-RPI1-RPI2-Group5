@@ -240,7 +240,7 @@ void app_main(void) {
     );
 
     //TODO: Intentar sacar de nvs los datos de provisionamiento para pasarlos a el init de provisionamiento
-    wifi_credentials = (wifi_credentials_t*)(sizeof(wifi_credentials_t));
+    wifi_credentials = (wifi_credentials_t*)malloc(sizeof(wifi_credentials_t));
     //Start the init of the provision component, we actively wait it to finish the provision to continue            
     provision_event_group = xEventGroupCreate();
     ESP_ERROR_CHECK(softAP_provision_init(provision_event_group, thingsboard_url, wifi_credentials));
