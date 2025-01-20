@@ -27,6 +27,11 @@ typedef enum {
     SGP30_STATE_FUNCTIONING,
 } sgp30_state_t;
 
+typedef struct {
+    sgp30_state_t state;
+    esp_err_t (*operation) (void);
+} sgp30_state_operation_t;
+
 typedef enum {
     SGP30_EVENT_NEW_MEASUREMENT,
     SGP30_EVENT_IAQ_INITIALIZING,
@@ -60,38 +65,28 @@ typedef struct {
     uint16_t TVOC;
 } sgp30_measurement_t;
 
-// [NVS]
 typedef struct {
-    time_t tv;
-    sgp30_measurement_t measurements;
-} sgp30_log_entry_t;
-
-// [NVS]
-typedef struct {
-    size_t head;
+    size_t oldest_index;
     size_t size;
-    sgp30_log_entry_t measurements[MAX_QUEUE_SIZE];
-} sgp30_log_t;
-
-typedef struct {
-    sgp30_measurement_t mean;
-    size_t count;
-} sgp30_aggregate_t;
-
-esp_err_t sgp30_update_aggregate(sgp30_aggregate_t *aggregate, const sgp30_measurement_t *new_measurement);
+    sgp30_measurement_t measurements[MAX_QUEUE_SIZE];
+} sgp30_measurement_log_t;
 
 ESP_EVENT_DECLARE_BASE(SGP30_EVENT);
 
 bool sgp30_is_baseline_expired(time_t stored, time_t current);
-esp_err_t sgp30_log_entry_to_valid_baseline_or_null(const sgp30_log_entry_t *in_log_entry, sgp30_measurement_t *out_measurement);
 
-esp_err_t sgp30_measurement_enqueue(
-    const sgp30_log_entry_t *m,
-    sgp30_log_t *q);
+esp_err_t sgp30_measurement_log_get_mean(
+    sgp30_measurement_t *m,
+    const sgp30_measurement_log_t *q);
 
-esp_err_t sgp30_measurement_dequeue(
-    sgp30_log_entry_t *m,
-    sgp30_log_t *q);
+esp_err_t sgp30_measurement_log_enqueue(
+    const sgp30_measurement_t *m,
+    sgp30_measurement_log_t *q);
+
+esp_err_t sgp30_measurement_log_dequeue(
+    sgp30_measurement_t *m,
+    sgp30_measurement_log_t *q);
+
 /**
  * @brief Creates a handle for the SGP30 device on the specified I2C bus.
  *

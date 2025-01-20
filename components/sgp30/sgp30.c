@@ -9,6 +9,7 @@
 #include "freertos/idf_additions.h"
 #include "freertos/projdefs.h"
 #include "portmacro.h"
+#include <math.h>
 #include <reent.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -26,10 +27,13 @@ ESP_EVENT_DEFINE_BASE(SGP30_EVENT);
 static char* TAG = "SGP30";
 static esp_event_loop_handle_t sgp30_event_loop;
 static i2c_master_dev_handle_t sgp30_dev_handle;
-static sgp30_aggregate_t sgp30_measurement_aggregate;
 static esp_timer_handle_t sgp30_update_baseline_timer_handle;
 static esp_timer_handle_t sgp30_acquire_baseline_timer_handle;
 static sgp30_state_t sgp30_state;
+static uint32_t sgp30_elapsed_secs;
+static bool sgp30_has_baseline;
+static sgp30_measurement_log_t sgp30_measurement_log;
+static sgp30_measurement_t sgp30_baseline;
 static TaskHandle_t sgp30_operation_task_handle;
 static esp_timer_handle_t sgp30_measurement_timer_handle;
 static SemaphoreHandle_t sgp30_measurement_requested;
@@ -46,22 +50,116 @@ void sgp30_on_sec_callback(void *args) {
     xTaskNotifyGive(sgp30_operation_task_handle);
 }
 
+static esp_err_t sgp30_uninitialized(
+) {
+    ESP_RETURN_ON_ERROR(
+        sgp30_init_air_quality(
+            sgp30_dev_handle
+        ),
+        TAG,
+        "Could not send IAQ"
+    );
+    sgp30_elapsed_secs = 0;
+    sgp30_state = SGP30_STATE_INITIALIZING;
+    return ESP_OK;
+}
+
+static esp_err_t sgp30_initializing(
+) {
+    sgp30_measurement_t measurement;
+    ESP_RETURN_ON_ERROR(
+        sgp30_measure_air_quality(
+            sgp30_dev_handle,
+            &measurement
+        ),
+        TAG,
+        "Error measuring"
+    );
+    if (measurement.eCO2 != 400) {
+        ESP_LOGE(TAG, "Wrong eCO2 returned, got %d", measurement.eCO2);
+    }
+    if (measurement.TVOC != 0) {
+        ESP_LOGE(TAG, "Wrong TVOC returned, got %d", measurement.TVOC);
+    }
+    if (sgp30_elapsed_secs == 15) {
+        if (sgp30_has_baseline) {
+            ESP_RETURN_ON_ERROR(
+                sgp30_set_baseline(
+                    sgp30_dev_handle,
+                    &measurement
+                ),
+                TAG,
+                "Error measuring"
+            );
+            sgp30_elapsed_secs = 0;
+            sgp30_state = SGP30_STATE_FUNCTIONING;
+        } else {
+            sgp30_state = SGP30_STATE_BASELINE_ACQUISITION;
+        }
+    }
+    return ESP_OK;
+}
+
+static esp_err_t sgp30_baseline_acquisition(
+) {
+    sgp30_measurement_t measurement;
+    sgp30_measure_air_quality(sgp30_dev_handle, &measurement);
+    ESP_LOGI(TAG, "Measured: eC02: %" PRIu16 "\tTVOC: %" PRIu16 "", measurement.eCO2, measurement.TVOC);
+    if (sgp30_elapsed_secs >= SGP30_FIRST_BASELINE_WAIT_TIME) {
+        sgp30_elapsed_secs = 0;
+        sgp30_get_baseline_and_post_esp_event();
+        sgp30_state = SGP30_STATE_FUNCTIONING;
+    }
+    return ESP_OK;
+}
+static esp_err_t sgp30_functioning(
+) {
+    sgp30_measurement_t measurement;
+    sgp30_measure_air_quality(sgp30_dev_handle, &measurement);
+    sgp30_measurement_log_enqueue(&measurement, &sgp30_measurement_log);
+    // We check if the semaphore is set without blocking
+    if (xSemaphoreTake(sgp30_measurement_requested, 0) == pdTRUE) {
+        sgp30_measurement_t mean;
+        sgp30_measurement_log_get_mean(&mean, &sgp30_measurement_log);
+        ESP_LOGI(TAG, "Request Received");
+        ESP_ERROR_CHECK(
+            esp_event_post_to(
+                sgp30_event_loop,
+                SGP30_EVENT,
+                SGP30_EVENT_NEW_MEASUREMENT,
+                &mean,
+                sizeof(sgp30_measurement_t),
+                portMAX_DELAY
+            )
+        );
+    }
+    return ESP_OK;
+}
+
+static const sgp30_state_operation_t state_operation[] = {
+    { SGP30_STATE_UNINITIAZED, sgp30_uninitialized },
+    { SGP30_STATE_INITIALIZING, sgp30_initializing },
+    { SGP30_STATE_BASELINE_ACQUISITION, sgp30_baseline_acquisition },
+    { SGP30_STATE_FUNCTIONING, sgp30_functioning }
+};
+
 void sgp30_operation_task(void *args) {
-    uint32_t elapsed_secs = 0;
     sgp30_measurement_t *baseline_handle = ((sgp30_measurement_t*) args);
     sgp30_measurement_t last_measurement;
+    sgp30_measurement_log_t measurement_log;
     sgp30_measurement_t baseline;
     sgp30_state = SGP30_STATE_UNINITIAZED;
     ESP_ERROR_CHECK(sgp30_start_measuring());
     while(true) {
         // We wait for a signal from the timer or 1 sec as fallback
         ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(10000));
-        elapsed_secs++;
-        ESP_LOGI(TAG, "%" PRIu32" seconds elapsed", elapsed_secs);
+        sgp30_elapsed_secs++;
+        ESP_LOGI(TAG, "%" PRIu32" seconds elapsed", sgp30_elapsed_secs);
+        //state_operation[sgp30_state].operation();
         switch (sgp30_state) {
             case SGP30_STATE_UNINITIAZED:
                 sgp30_init_air_quality(sgp30_dev_handle);
-                elapsed_secs = 0;
+                sgp30_elapsed_secs = 0;
                 sgp30_state = SGP30_STATE_INITIALIZING;
                 break;
 
@@ -73,14 +171,14 @@ void sgp30_operation_task(void *args) {
                 if (last_measurement.TVOC != 0) {
                     ESP_LOGE(TAG, "Wrong TVOC returned, got %d", last_measurement.TVOC);
                 }
-                if (elapsed_secs == 15) {
+                if (sgp30_elapsed_secs == 15) {
                     if (baseline_handle == NULL) {
                         sgp30_get_baseline(sgp30_dev_handle, &baseline);
                         sgp30_set_baseline(sgp30_dev_handle, &baseline);
                         sgp30_state = SGP30_STATE_BASELINE_ACQUISITION;
                     } else {
-                        sgp30_set_baseline(sgp30_dev_handle, &baseline);
-                        elapsed_secs = 0;
+                        sgp30_set_baseline(sgp30_dev_handle, baseline_handle);
+                        sgp30_elapsed_secs = 0;
                         sgp30_state = SGP30_STATE_FUNCTIONING;
                     }
                 }
@@ -89,40 +187,45 @@ void sgp30_operation_task(void *args) {
             case SGP30_STATE_BASELINE_ACQUISITION:
                 sgp30_measure_air_quality(sgp30_dev_handle, &last_measurement);
                 ESP_LOGI(TAG, "Measured: eC02: %" PRIu16 "\tTVOC: %" PRIu16 "", last_measurement.eCO2, last_measurement.TVOC);
-                if (elapsed_secs >= SGP30_FIRST_BASELINE_WAIT_TIME) {
-                    elapsed_secs = 0;
+                if (sgp30_elapsed_secs >= SGP30_FIRST_BASELINE_WAIT_TIME) {
+                    sgp30_elapsed_secs = 0;
                     sgp30_get_baseline_and_post_esp_event();
                     sgp30_state = SGP30_STATE_FUNCTIONING;
                 }
+                #ifdef MEASURE_IN_FIRST_BASELINE_WAIT_TIME
                 if (xSemaphoreTake(sgp30_measurement_requested, 0) == pdTRUE) {
+                    sgp30_measurement_t mean;
+                    sgp30_measurement_log_mean(&mean, &measurement_log);
                     ESP_LOGI(TAG, "Request Received");
                     ESP_ERROR_CHECK(
                         esp_event_post_to(
                             sgp30_event_loop,
                             SGP30_EVENT,
                             SGP30_EVENT_NEW_MEASUREMENT,
-                            &sgp30_measurement_aggregate.mean,
+                            &mean,
                             sizeof(sgp30_measurement_t),
                             portMAX_DELAY
                         )
                     );
                 }
+                #endif
                 break;
 
             case SGP30_STATE_FUNCTIONING:
                 sgp30_measure_air_quality(sgp30_dev_handle, &last_measurement);
                 //ESP_LOGI(TAG, "Measured: eC02: %" PRIu16 "\tTVOC: %" PRIu16 "", last_measurement.eCO2, last_measurement.TVOC);
-                sgp30_update_aggregate(&sgp30_measurement_aggregate, &last_measurement);
+                sgp30_measurement_log_enqueue(&last_measurement, &measurement_log);
                 // We check if the semaphore is set without blocking
-                // podemos probar otras maneras
                 if (xSemaphoreTake(sgp30_measurement_requested, 0) == pdTRUE) {
+                    sgp30_measurement_t mean;
+                    sgp30_measurement_log_get_mean(&mean, &measurement_log);
                     ESP_LOGI(TAG, "Request Received");
                     ESP_ERROR_CHECK(
                         esp_event_post_to(
                             sgp30_event_loop,
                             SGP30_EVENT,
                             SGP30_EVENT_NEW_MEASUREMENT,
-                            &sgp30_measurement_aggregate.mean,
+                            &mean,
                             sizeof(sgp30_measurement_t),
                             portMAX_DELAY
                         )
@@ -252,23 +355,6 @@ static esp_err_t sgp30_execute_command(
     return ESP_OK;
 }
 
-
-esp_err_t sgp30_update_aggregate(
-    sgp30_aggregate_t *aggregate,
-    const sgp30_measurement_t *new_measurement
-) {
-    if (aggregate->count == 0) {
-        aggregate->mean.eCO2 = new_measurement->eCO2;
-        aggregate->mean.TVOC = new_measurement->TVOC;
-        aggregate->count++;
-    } else {
-        //[WARN] maybe overflow!
-        aggregate->mean.eCO2 = (new_measurement->eCO2 + aggregate->mean.eCO2 * aggregate->count) / (aggregate->count + 1);
-        aggregate->mean.TVOC = (new_measurement->TVOC + aggregate->mean.TVOC * aggregate->count) / (aggregate->count + 1);
-        aggregate->count++;
-    }
-    return ESP_OK;
-}
 
 esp_err_t sgp30_init(
     esp_event_loop_handle_t loop,
@@ -402,9 +488,13 @@ esp_err_t sgp30_measure_air_quality(i2c_master_dev_handle_t dev_handle, sgp30_me
         TAG, "Could not execute MEASURE_AIR_QUALITY command"
     );
 
-    air_quality->eCO2 = response_buffer[0];
-    air_quality->TVOC = response_buffer[1];
-    return ESP_OK;
+    if (air_quality == NULL) {
+        return ESP_OK;
+    } else {
+        air_quality->eCO2 = response_buffer[0];
+        air_quality->TVOC = response_buffer[1];
+        return ESP_OK;
+    }
 }
 
 esp_err_t sgp30_measure_air_quality_and_post_esp_event()
@@ -552,43 +642,48 @@ bool sgp30_is_baseline_expired(
     }
 }
 
-esp_err_t sgp30_measurement_to_log_entry(
-    const sgp30_measurement_t *in_measurement,
-    const time_t *now,
-    sgp30_log_entry_t *out_log_entry
+esp_err_t sgp30_measurement_log_enqueue(
+    const sgp30_measurement_t *m,
+    sgp30_measurement_log_t *q
 ) {
-    out_log_entry->measurements.eCO2 = in_measurement->eCO2;
-    out_log_entry->measurements.TVOC = in_measurement->TVOC;
-    out_log_entry->tv = *now;
+    if (q->size == MAX_QUEUE_SIZE) {
+        memcpy(&q->measurements[q->oldest_index], m, sizeof(sgp30_measurement_t));
+        q->oldest_index = (q->oldest_index + 1) % MAX_QUEUE_SIZE;
+    } else {
+        q->size++;
+        memcpy(&q->measurements[(q->oldest_index + q->size) % MAX_QUEUE_SIZE], m, sizeof(sgp30_measurement_t));
+    }
     return ESP_OK;
 }
 
-esp_err_t sgp30_measurement_enqueue(
-    const sgp30_log_entry_t *m,
-    sgp30_log_t *q)
-{
-    if (q->size == MAX_QUEUE_SIZE) {
-        return ESP_ERR_NO_MEM;
+esp_err_t sgp30_measurement_log_dequeue(
+    sgp30_measurement_t *m,
+    sgp30_measurement_log_t *q
+) {
+    if (q->size == 0) {
+        return ESP_ERR_INVALID_SIZE;
     } else {
-        q->size++;
-        memcpy(&q->measurements[(q->head + q->size) % MAX_QUEUE_SIZE], m, sizeof(sgp30_log_entry_t));
+        memcpy(m, &q->measurements[q->oldest_index], sizeof(sgp30_measurement_t));
+        #ifdef ZERO_OUT_QUEUE_ON_DEQUEUE
+        memset(&q->measurements[q->oldest_index], 0, sizeof(sgp30_measurement_t));
+        #endif
+        q->oldest_index = (q->oldest_index + 1) % MAX_QUEUE_SIZE;
+        q->size--;
         return ESP_OK;
     }
 }
 
-esp_err_t sgp30_measurement_dequeue(
-    sgp30_log_entry_t *m,
-    sgp30_log_t *q)
-{
-    if (q->size == 0) {
-        return ESP_ERR_INVALID_SIZE;
-    } else {
-        memcpy(m, &q->measurements[q->head], sizeof(sgp30_log_entry_t));
-        #ifdef ZERO_OUT_QUEUE_ON_DEQUEUE
-        memset(&q->measurements[q->head], 0, sizeof(sgp30_log_entry_t));
-        #endif
-        q->head = (q->head + 1) % MAX_QUEUE_SIZE;
-        q->size--;
-        return ESP_OK;
+esp_err_t sgp30_measurement_log_get_mean(
+    sgp30_measurement_t *m,
+    const sgp30_measurement_log_t *q
+) {
+    uint32_t mean_eCO2 = 0;
+    uint32_t mean_TVOC = 0;
+    for (int i = 0; i < q->size; i++) {
+        mean_eCO2 += (uint32_t) q->measurements[i].eCO2;
+        mean_TVOC += (uint32_t) q->measurements[i].TVOC;
     }
+    m->eCO2 = (uint16_t) (mean_eCO2 % q->size);
+    m->TVOC = (uint16_t) (mean_TVOC % q->size);
+    return ESP_OK;
 }
