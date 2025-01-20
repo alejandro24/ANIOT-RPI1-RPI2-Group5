@@ -1,6 +1,11 @@
 #ifndef WIFI_H
 #define WIFI_H
 
+#include <esp_wifi.h>
+
+// Wi-Fi configuration (using WPA2)
+extern wifi_config_t wifi_config;  // Declare wifi_config, defined in wifi.c
+
 // Initializes WiFi in Station mode (STA)
 void wifi_init_sta(void);
 

@@ -1,4 +1,4 @@
-//#include "wifi_manager.h"
+#include <esp_wifi.h>
 #include "driver/i2c_types.h"
 #include "esp_check.h"
 #include "esp_err.h"
@@ -11,12 +11,24 @@
 #include "portmacro.h"
 #include "sgp30.h"
 #include "nvs_structures.h"
+#include "softAP_provision.h"
+#include "mqtt_controller.h"
 #include <stdint.h>
 #include <string.h>
 #include <nvs_flash.h>
 #include "sntp_sync.h"  // Include the SNTP component
 #include "wifi.h"
+#include "esp_netif.h"
+
+#include "esp_log.h"
+#include "esp_tls.h"
 #include <stdio.h>
+
+
+#include "nvs_flash.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "lwip/apps/sntp.h"
 
 #define DEVICE_SDA_IO_NUM 21
 #define DEVICE_SCL_IO_NUM 22
@@ -30,7 +42,58 @@ uint32_t sgp30_req_measurement_interval;
 esp_timer_handle_t sgp30_req_measurement_timer_handle;
 SemaphoreHandle_t sgp30_req_measurement;
 sgp30_log_t sgp30_log;
+uint16_t send_time = 30;
+static EventGroupHandle_t provision_event_group;
+char thingsboard_url[100];
+wifi_credentials_t *wifi_credentials;
 
+static void new_send_time_event_handler(
+    void * handler_args,
+    esp_event_base_t base,
+    int32_t event_id,
+    void *event_data
+) {
+    send_time = *(int*) event_data;
+}
+
+// wifi handler to take actions for the different wifi events
+static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
+    static int retry_count = 0;
+    
+    switch (event_id) {
+        case WIFI_EVENT_STA_START:
+            ESP_LOGI(TAG, "Conectando a WiFi...");
+            esp_wifi_connect();  // Intenta la conexión
+            break;
+        case WIFI_EVENT_STA_CONNECTED:
+            retry_count = 0;  // Reseteamos el contador de reintentos
+            ESP_LOGI(TAG, "Conectado exitosamente al WiFi");
+            break;
+        case WIFI_EVENT_STA_DISCONNECTED:
+            ESP_LOGI(TAG, "Desconectado del WiFi, reintentando...");
+            if (retry_count < 5) {
+                int delay = (1 << retry_count) * 1000;  // Backoff exponencial (1s, 2s, 4s...)
+                ESP_LOGI(TAG, "Reintentando en %d ms...", delay);
+                vTaskDelay(pdMS_TO_TICKS(delay));  // Esperar antes de intentar nuevamente
+                esp_wifi_connect();
+                retry_count++;
+            } else {
+                ESP_LOGE(TAG, "No se pudo conectar al WiFi después de varios intentos.");
+                // Acciones adicionales si fallan todos los intentos
+            }
+            break;
+        default:
+            break;
+    }
+}
+
+static void event_handler_got_ip(void* arg, esp_event_base_t event_base,
+                                int32_t event_id, void* event_data)
+{
+    ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
+    ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
+    mqtt_init(thingsboard_url);
+}
 static void sgp30_req_measurement_callback(void *args) {
     sgp30_request_measurement();
 }
@@ -82,6 +145,15 @@ static void sgp30_on_new_baseline(
     );
 }
 
+static const sgp30_event_handler_register_t sgp30_registered_events[] =
+{
+    { SGP30_EVENT_NEW_MEASUREMENT, sgp30_on_new_measurement },
+    { SGP30_EVENT_NEW_INTERVAL, sgp30_on_new_interval},
+    { SGP30_EVENT_NEW_MEASUREMENT, sgp30_on_new_baseline}
+};
+
+static const size_t sgp30_registered_events_len = sizeof(sgp30_registered_events) / sizeof(sgp30_registered_events[0]);
+
 static esp_err_t init_i2c(i2c_master_bus_handle_t *bus_handle)
 {
     i2c_master_bus_config_t i2c_bus_config = {
@@ -109,6 +181,7 @@ void app_main(void) {
 
 
     esp_event_loop_args_t imc_event_loop_args = {
+    // An event loop for sensoring related events
         .queue_size = 5,
         .task_name = "sgp30_event_loop_task", /* since it is a task it can be stopped */
         .task_stack_size = 4096,
@@ -117,45 +190,56 @@ void app_main(void) {
     };
     esp_event_loop_create(&imc_event_loop_args, &imc_event_loop_handle);
 
-
     ESP_ERROR_CHECK(storage_init());
-
 
     ESP_ERROR_CHECK(init_i2c(&i2c_master_bus_handle));
     ESP_ERROR_CHECK(sgp30_device_create(i2c_master_bus_handle, SGP30_I2C_ADDR, 400000));
 
 
     // Set up event listeners for SGP30 module.
+    for (int i = 0; i < sgp30_registered_events_len; i++)
+    {
+        ESP_ERROR_CHECK(
+            esp_event_handler_register_with(
+                imc_event_loop_handle,
+                SGP30_EVENT,
+                sgp30_registered_events[i].event_id,
+                sgp30_registered_events[i].event_handler,
+                NULL
+            )
+        );
+    }
+
+
+    // Set up event listeenr for MQTT module
     ESP_ERROR_CHECK(
         esp_event_handler_register_with(
             imc_event_loop_handle,
-            SGP30_EVENT,
-            SGP30_EVENT_NEW_INTERVAL,
-            sgp30_on_new_interval,
+            MQTT_THINGSBOARD_EVENT,
+            MQTT_NEW_SEND_TIME,
+            mqtt_event_handler,
             NULL
         )
     );
 
-    ESP_ERROR_CHECK(
-        esp_event_handler_register_with(
-            imc_event_loop_handle,
-            SGP30_EVENT,
-            SGP30_EVENT_NEW_MEASUREMENT,
-            sgp30_on_new_measurement,
-            NULL
-        )
-    );
+    //TODO: Intentar sacar de nvs los datos de provisionamiento para pasarlos a el init de provisionamiento
+    wifi_credentials = (wifi_credentials_t*)(sizeof(wifi_credentials_t));
+    //Start the init of the provision component, we actively wait it to finish the provision to continue            
+    provision_event_group = xEventGroupCreate();
+    ESP_ERROR_CHECK(softAP_provision_init(provision_event_group, thingsboard_url, wifi_credentials));
 
-    ESP_ERROR_CHECK(
-        esp_event_handler_register_with(
-            imc_event_loop_handle,
-            SGP30_EVENT,
-            SGP30_EVENT_NEW_BASELINE,
-            sgp30_on_new_baseline,
-            NULL
-        )
-    );
-
+    /* Wait for Provision*/
+    xEventGroupWaitBits(provision_event_group, PROVISION_DONE_EVENT, true, true, portMAX_DELAY);
+    
+    // Obtain baseline from NVS if available
+    // sgp30_log_entry_t sgp30_last_stored_baseline;
+    // ESP_ERROR_CHECK(
+    //     storage_invoke_get_baseline_command(
+    //         storage_sgp30_baseline_queue,
+    //         &sgp30_last_stored_baseline
+    //     )
+    // );
+    // sgp30_log_entry_to_valid_baseline_or_null(&sgp30_last_stored_baseline, &sgp30_baseline);
     esp_timer_create_args_t sgp30_req_measurement_timer_args = {
         .callback = sgp30_req_measurement_callback,
         .name = "request_measurement"
@@ -206,13 +290,28 @@ void app_main(void) {
 
     if (retries == 20) {
         ESP_LOGE(TAG, "Failed to connect to Wi-Fi after multiple attempts");
-        return;  // Stop execution if Wi-Fi connection fails
+        return; // Stop execution if Wi-Fi connection fails
     }
 
-    // Initialize SNTP for time synchronization
-    ESP_LOGI(TAG, "Starting SNTP synchronization...");
-    initialize_sntp();
+    // Attempt SNTP synchronization
+    if (!obtain_time()) {
+        ESP_LOGE(TAG, "SNTP synchronization failed after multiple attempts");
+        return; // Stop execution if SNTP synchronization fails
+    }
 
     // Continue with the rest of the application logic
-/   */
+    ESP_LOGI(TAG, "Application logic continues...");
+
+    
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        // NVS partition was truncated and needs to be erased 
+         
+        ESP_ERROR_CHECK(nvs_flash_erase());
+
+        //Retry nvs_flash_init 
+        ESP_ERROR_CHECK(nvs_flash_init());
+    }
+
+    ESP_ERROR_CHECK(ret);
+*/
 }

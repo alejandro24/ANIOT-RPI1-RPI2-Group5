@@ -36,6 +36,11 @@ typedef enum {
     SGP30_EVENT_NEW_INTERVAL,
 } sgp30_event_id_t ;
 
+typedef struct {
+    sgp30_event_id_t event_id;
+    esp_event_handler_t event_handler;
+} sgp30_event_handler_register_t;
+
 // SGP30 register write only addresses
 // SGP30 register read and write addresses
 typedef enum {

@@ -1,0 +1,15 @@
+menu "MQTT and ThingsBoard Configuration"
+
+    config PROVISION_KEY
+        string "Provision key"
+        default ""
+        help
+            Provision key for thingsboard
+
+    config SECRET_KEY
+        string "Secret key"
+        default ""
+        help
+            secret key for thingsboard
+
+endmenu

@@ -5,6 +5,20 @@
 #define PROV_QR_VERSION         "v1"
 #define PROV_TRANSPORT_SOFTAP   "softap"
 #define QRCODE_BASE_URL         "https://espressif.github.io/esp-jumpstart/qrcode.html"
+/* Signal Provision done events on this event-group */
+#define PROVISION_DONE_EVENT (1 << 0)
+
+//[NVS]
+typedef enum {
+    THINGSBOARD_URL_OBTAINED,
+} provision_event_t;
+
+//[NVS]
+typedef struct {
+    char ssid[32];
+    char password[64];
+} wifi_credentials_t;
+
 
 #if CONFIG_EXAMPLE_PROV_SECURITY_VERSION_2
 #if CONFIG_EXAMPLE_PROV_SEC2_DEV_MODE
@@ -46,18 +60,22 @@ static const char sec2_verifier[] = {
 };
 #endif
 
-static esp_err_t example_get_sec2_salt(const char **salt, uint16_t *salt_len);
+esp_err_t example_get_sec2_salt(const char **salt, uint16_t *salt_len);
 
-static esp_err_t example_get_sec2_verifier(const char **verifier, uint16_t *verifier_len);
+esp_err_t example_get_sec2_verifier(const char **verifier, uint16_t *verifier_len);
 #endif
 
-static void wifi_init_sta(void);
 
-static void get_device_service_name(char *service_name, size_t max);
+void provision_event_handler(void* arg, esp_event_base_t event_base,
+                          int32_t event_id, void* event_data);
+
+void wifi_init_sta(void);
+
+void get_device_service_name(char *service_name, size_t max);
 
 esp_err_t thingsboard_url_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen,
                                           uint8_t **outbuf, ssize_t *outlen, void *priv_data);
 
-static void wifi_prov_print_qr(const char *name, const char *username, const char *pop, const char *transport);
+void wifi_prov_print_qr(const char *name, const char *username, const char *pop, const char *transport);
 
-static void softAP_provision_init(esp_event_loop_handle_t loop);
+esp_err_t softAP_provision_init(EventGroupHandle_t event_group, char *thingsboard_url, wifi_credentials_t *wifi_credentials);
