@@ -44,7 +44,7 @@ SemaphoreHandle_t sgp30_req_measurement;
 sgp30_measurement_log_t sgp30_log;
 uint16_t send_time = 30;
 static EventGroupHandle_t provision_event_group;
-char thingsboard_url[100];
+thingsboard_url_t thingsboard_url;
 wifi_credentials_t *wifi_credentials;
 
 static void new_send_time_event_handler(
@@ -92,7 +92,7 @@ static void event_handler_got_ip(void* arg, esp_event_base_t event_base,
 {
     ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
     ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
-    mqtt_init(thingsboard_url);
+    mqtt_init(imc_event_loop_handle, thingsboard_url);
 }
 static void sgp30_req_measurement_callback(void *args) {
     sgp30_request_measurement();
@@ -251,6 +251,7 @@ void app_main(void) {
     // Esto debería de iniciarse al tener un valor del intervalo, por MQTT (atributo compartido creo)
     // Se inicia solo al mandar un evento SGP30_EVENT_NEW_INTERVAL
     esp_timer_start_periodic(sgp30_req_measurement_timer_handle, 10000000);
+    mqtt_init(imc_event_loop_handle, thingsboard_url);
 
        /* WIFI Y SNTP
      // Initialize NVS

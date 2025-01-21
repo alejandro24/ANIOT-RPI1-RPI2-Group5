@@ -1,4 +1,5 @@
 #include "nvs_structures.h"
+#include "mqtt_controller.h"
 #include "nvs.h"
 #include "sgp30.h"
 #include "esp_err.h"
@@ -22,7 +23,7 @@ esp_err_t storage_get_sgp30_timed_measurement(
 }
 
 esp_err_t storage_get_thingsboard_url(
-    thingsboard_url_t *thingsboard_url_handle
+    thingsboard_url_t thingsboard_url_handle
 ) {
     return nvs_get_thingsboard_url(thingsboard_url_handle);
 }
@@ -53,7 +54,7 @@ esp_err_t nvs_get_sgp30_timed_measurement(
     return ESP_OK;
 }
 esp_err_t nvs_get_thingsboard_url(
-    thingsboard_url_t *thingsboard_url_handle
+    thingsboard_url_t thingsboard_url_handle
 ) {
     size_t thingsboard_url_len;
     char* key = "thingsboard_url";

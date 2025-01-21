@@ -1,3 +1,5 @@
+#ifndef MQTT_CONTROLLER_H
+#define MQTT_CONTROLLER_H
 #include <stdio.h>
 #include <string.h>
 #include "esp_event.h"
@@ -6,6 +8,8 @@
 #include "mqtt_client.h"
 
 ESP_EVENT_DECLARE_BASE(MQTT_THINGSBOARD_EVENT);
+
+typedef char thingsboard_url_t[100];
 
 typedef enum {
     MQTT_NEW_SEND_TIME,
@@ -40,5 +44,7 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 //Function that waits to be provision with access token and create the new mqtt client conection
 void mqtt_provision_task(void *pvParameters);
 
-esp_err_t mqtt_provision(char *thingsboard_url);
-esp_err_t mqtt_init(char* thingsboard_url);
+esp_err_t mqtt_provision(thingsboard_url_t thingsboard_url);
+esp_err_t mqtt_init(esp_event_loop_handle_t loop, thingsboard_url_t thingsboard_url);
+esp_err_t mqtt_publish(char* data, size_t data_len);
+#endif //MQTT_CONTROLLER_H

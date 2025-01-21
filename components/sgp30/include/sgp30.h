@@ -189,4 +189,4 @@ esp_err_t sgp30_get_id();
  * TODO DOCUMENTATION
     */
 
-#endif
+#endif // SGP30_H

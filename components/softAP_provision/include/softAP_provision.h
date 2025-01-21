@@ -1,5 +1,9 @@
+#ifndef SOFTAP_PROVISION_H
+#define SOFTAP_PROVISION_H
 #include <stdio.h>
 #include <string.h>
+#include "esp_err.h"
+#include "esp_event.h"
 
 
 #define PROV_QR_VERSION         "v1"
@@ -79,3 +83,4 @@ esp_err_t thingsboard_url_prov_data_handler(uint32_t session_id, const uint8_t *
 void wifi_prov_print_qr(const char *name, const char *username, const char *pop, const char *transport);
 
 esp_err_t softAP_provision_init(EventGroupHandle_t event_group, char *thingsboard_url, wifi_credentials_t *wifi_credentials);
+#endif // SOFTAP_PROVISION_H

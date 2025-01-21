@@ -8,6 +8,7 @@
 #include <freertos/task.h>
 #include "cJSON.h"
 #include "esp_err.h"
+#include "esp_event_base.h"
 #include "esp_system.h"
 #include "esp_partition.h"
 #include "freertos/idf_additions.h"
@@ -33,9 +34,10 @@
 #define PROVISION_REQUEST_TOPIC "/provision/request"
 #define PROVISION_RESPONSE_TOPIC "/provision/response"
 
-static const uint8_t mqtt_server_pem_start[] asm("_binary_server_pem_start");
-static const uint8_t mqtt_server_pem_end[] asm("_binary_server_pem_end");
+//static const uint8_t mqtt_server_pem_start[] asm("_binary_server_pem_start");
+//static const uint8_t mqtt_server_pem_end[] asm("_binary_server_pem_end");
 static const char *TAG = "mqtt_thingsboard";
+esp_event_loop_handle_t event_loop;
 esp_mqtt_client_handle_t client;
 static SemaphoreHandle_t is_provisioned;  // Cola para manejar eventos
 //[NVS]
@@ -154,7 +156,7 @@ void received_data(cJSON *root, char* topic, size_t topic_len){
             if(cJSON_IsNumber(item)){
                 send_time = item->valueint;
                 ESP_ERROR_CHECK(
-                    esp_event_post(MQTT_THINGSBOARD_EVENT, MQTT_NEW_SEND_TIME, &send_time, sizeof(send_time), portMAX_DELAY));
+                    esp_event_post_to(event_loop, MQTT_THINGSBOARD_EVENT, MQTT_NEW_SEND_TIME, &send_time, sizeof(send_time), portMAX_DELAY));
             }
         }
     }
@@ -250,13 +252,13 @@ esp_err_t mqtt_set_access_token(char* token, size_t token_len) {
     }
 }
 
-esp_err_t mqtt_provision(char* thingsboard_url)
+esp_err_t mqtt_provision(thingsboard_url_t thingsboard_url)
 {
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker.address.uri = thingsboard_url,
         .broker.address.port = 8883,
-        .broker.verification.certificate = (char*) mqtt_server_pem_start,
-        .broker.verification.certificate_len = mqtt_server_pem_end - mqtt_server_pem_start,
+        //.broker.verification.certificate = (char*) mqtt_server_pem_start,
+        //.broker.verification.certificate_len = mqtt_server_pem_end - mqtt_server_pem_start,
         .credentials.username = THINGSBOARD_PROVISION_USERNAME,
     };
 
@@ -295,8 +297,12 @@ esp_err_t mqtt_provision(char* thingsboard_url)
     return ESP_OK;
 }
 
-esp_err_t mqtt_init(char* thingsboard_url)
-{
+esp_err_t mqtt_init(
+    esp_event_loop_handle_t loop,
+    thingsboard_url_t thingsboard_url
+) {
+    event_loop = loop;
+
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker.address.uri = thingsboard_url,
         .broker.address.port = 1883,
