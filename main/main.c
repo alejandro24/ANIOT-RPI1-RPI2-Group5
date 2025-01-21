@@ -109,7 +109,10 @@ static void sgp30_on_new_measurement(
 
     new_log_entry.measurement = *((sgp30_measurement_t*) event_data);
     ESP_LOGI(TAG, "Measured eCO2= %d TVOC= %d", new_log_entry.measurement.eCO2, new_log_entry.measurement.TVOC);
-    // sgp30_measurement_enqueue(&new_log_entry, &sgp30_log);
+    //sgp30_measurement_enqueue(&new_log_entry, &sgp30_log);
+    //char[400] measurement_JSON_repr;
+    //sgp30_measurement_to_JSON(&new_log_entry.measurement, &measurement_JSON_rep)
+    //mqtt_publish(measurement_JSON_repr);
     // Send or store log_entry
 }
 
