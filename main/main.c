@@ -41,7 +41,7 @@ esp_event_loop_handle_t imc_event_loop_handle;
 uint32_t sgp30_req_measurement_interval;
 esp_timer_handle_t sgp30_req_measurement_timer_handle;
 SemaphoreHandle_t sgp30_req_measurement;
-sgp30_log_t sgp30_log;
+sgp30_measurement_log_t sgp30_log;
 uint16_t send_time = 30;
 static EventGroupHandle_t provision_event_group;
 char thingsboard_url[100];
@@ -59,7 +59,7 @@ static void new_send_time_event_handler(
 // wifi handler to take actions for the different wifi events
 static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
     static int retry_count = 0;
-    
+
     switch (event_id) {
         case WIFI_EVENT_STA_START:
             ESP_LOGI(TAG, "Conectando a WiFi...");
@@ -104,10 +104,11 @@ static void sgp30_on_new_measurement(
     int32_t event_id,
     void *event_data
 ) {
-    sgp30_log_entry_t new_log_entry;
-    time(&new_log_entry.tv);
-    new_log_entry.measurements = *((sgp30_measurement_t*) event_data);
-    ESP_LOGI(TAG, "Measured eCO2= %d TVOC= %d", new_log_entry.measurements.eCO2, new_log_entry.measurements.TVOC);
+    sgp30_timed_measurement_t new_log_entry;
+    time(&new_log_entry.time);
+
+    new_log_entry.measurement = *((sgp30_measurement_t*) event_data);
+    ESP_LOGI(TAG, "Measured eCO2= %d TVOC= %d", new_log_entry.measurement.eCO2, new_log_entry.measurement.TVOC);
     // sgp30_measurement_enqueue(&new_log_entry, &sgp30_log);
     // Send or store log_entry
 }
@@ -132,16 +133,16 @@ static void sgp30_on_new_baseline(
     int32_t event_id,
     void *event_data
 ) {
-    sgp30_log_entry_t new_baseline;
-    new_baseline.measurements = *((sgp30_measurement_t*) event_data),
-    time(&new_baseline.tv);
+    sgp30_timed_measurement_t new_baseline;
+    new_baseline.measurement = *((sgp30_measurement_t*) event_data),
+    time(&new_baseline.time);
     //storage_set
     ESP_LOGI(
         TAG,
         "Baseline eCO2= %d TVOC= %d at timestamp %s",
-        new_baseline.measurements.eCO2,
-        new_baseline.measurements.TVOC,
-        ctime(&new_baseline.tv)
+        new_baseline.measurement.eCO2,
+        new_baseline.measurement.TVOC,
+        ctime(&new_baseline.time)
     );
 }
 
@@ -224,22 +225,13 @@ void app_main(void) {
 
     //TODO: Intentar sacar de nvs los datos de provisionamiento para pasarlos a el init de provisionamiento
     wifi_credentials = (wifi_credentials_t*)(sizeof(wifi_credentials_t));
-    //Start the init of the provision component, we actively wait it to finish the provision to continue            
+    //Start the init of the provision component, we actively wait it to finish the provision to continue
     provision_event_group = xEventGroupCreate();
     ESP_ERROR_CHECK(softAP_provision_init(provision_event_group, thingsboard_url, wifi_credentials));
 
     /* Wait for Provision*/
     xEventGroupWaitBits(provision_event_group, PROVISION_DONE_EVENT, true, true, portMAX_DELAY);
-    
-    // Obtain baseline from NVS if available
-    // sgp30_log_entry_t sgp30_last_stored_baseline;
-    // ESP_ERROR_CHECK(
-    //     storage_invoke_get_baseline_command(
-    //         storage_sgp30_baseline_queue,
-    //         &sgp30_last_stored_baseline
-    //     )
-    // );
-    // sgp30_log_entry_to_valid_baseline_or_null(&sgp30_last_stored_baseline, &sgp30_baseline);
+
     esp_timer_create_args_t sgp30_req_measurement_timer_args = {
         .callback = sgp30_req_measurement_callback,
         .name = "request_measurement"
@@ -248,11 +240,11 @@ void app_main(void) {
     esp_timer_create(&sgp30_req_measurement_timer_args, &sgp30_req_measurement_timer_handle);
     // At this point a valid time is required
     // We start the sensor
-    sgp30_log_entry_t maybe_baseline;
+    sgp30_timed_measurement_t maybe_baseline;
     time_t time_now;
     time(&time_now);
-    if ( ESP_OK == storage_get(&maybe_baseline) && !sgp30_is_baseline_expired(maybe_baseline.tv, time_now)){
-        sgp30_init(imc_event_loop_handle, &maybe_baseline.measurements);
+    if ( ESP_OK == storage_get(&maybe_baseline) && !sgp30_is_baseline_expired(maybe_baseline.time, time_now)){
+        sgp30_init(imc_event_loop_handle, &maybe_baseline.measurement);
     } else {
         sgp30_init(imc_event_loop_handle, NULL);
     }

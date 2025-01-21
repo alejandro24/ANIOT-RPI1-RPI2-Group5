@@ -15,10 +15,10 @@ esp_err_t storage_init() {
     return nvs_open("nvs", NVS_READWRITE, &storage_handle);
 }
 
-esp_err_t storage_get_sgp30_log_entry(
-    sgp30_log_entry_t *sgp30_log_entry_handle
+esp_err_t storage_get_sgp30_timed_measurement(
+    sgp30_timed_measurement_t *sgp30_log_entry_handle
 ) {
-    return nvs_get_sgp30_log_entry(sgp30_log_entry_handle);
+    return nvs_get_sgp30_timed_measurement(sgp30_log_entry_handle);
 }
 
 esp_err_t storage_get_thingsboard_url(
@@ -27,8 +27,8 @@ esp_err_t storage_get_thingsboard_url(
     return nvs_get_thingsboard_url(thingsboard_url_handle);
 }
 
-esp_err_t nvs_get_sgp30_log_entry(
-    sgp30_log_entry_t *sgp30_log_entry_handle
+esp_err_t nvs_get_sgp30_timed_measurement(
+    sgp30_timed_measurement_t *sgp30_log_entry_handle
 ) {
     size_t baseline_len;
     char* key = SGP30_NVS_BASELINE_KEY;

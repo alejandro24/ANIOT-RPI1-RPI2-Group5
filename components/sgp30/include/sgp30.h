@@ -71,6 +71,11 @@ typedef struct {
     sgp30_measurement_t measurements[MAX_QUEUE_SIZE];
 } sgp30_measurement_log_t;
 
+typedef struct {
+    sgp30_measurement_t measurement;
+    time_t time;
+} sgp30_timed_measurement_t;
+
 ESP_EVENT_DECLARE_BASE(SGP30_EVENT);
 
 bool sgp30_is_baseline_expired(time_t stored, time_t current);

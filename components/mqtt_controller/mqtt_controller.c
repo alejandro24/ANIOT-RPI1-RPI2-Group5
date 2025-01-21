@@ -29,9 +29,12 @@
 #define MAX_PROVISIONING_WAIT portMAX_DELAY
 #define THINGSBOARD_PROVISION_USERNAME "provision"
 #define DEVICE_ATTRIBUTES_TOPIC "v1/devices/me/attributes"
+#define DEVICE_TELEMETRY_TOPIC "v1/devices/me/telemetry"
 #define PROVISION_REQUEST_TOPIC "/provision/request"
 #define PROVISION_RESPONSE_TOPIC "/provision/response"
 
+static const uint8_t mqtt_server_pem_start[] asm("_binary_server_pem_start");
+static const uint8_t mqtt_server_pem_end[] asm("_binary_server_pem_end");
 static const char *TAG = "mqtt_thingsboard";
 esp_mqtt_client_handle_t client;
 static SemaphoreHandle_t is_provisioned;  // Cola para manejar eventos
@@ -251,7 +254,9 @@ esp_err_t mqtt_provision(char* thingsboard_url)
 {
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker.address.uri = thingsboard_url,
-        .broker.address.port = 1883,
+        .broker.address.port = 8883,
+        .broker.verification.certificate = (char*) mqtt_server_pem_start,
+        .broker.verification.certificate_len = mqtt_server_pem_end - mqtt_server_pem_start,
         .credentials.username = THINGSBOARD_PROVISION_USERNAME,
     };
 
@@ -324,5 +329,23 @@ esp_err_t mqtt_init(char* thingsboard_url)
         "could not start mqtt client"
     );
 
+    return ESP_OK;
+}
+
+esp_err_t mqtt_publish(
+    char* data,
+    size_t data_len
+) {
+    int msg_id = esp_mqtt_client_publish(
+        client,
+        DEVICE_TELEMETRY_TOPIC,
+        data,
+        data_len,
+        0,
+        0
+    );
+    if (msg_id < 0) {
+        return ESP_FAIL;
+    }
     return ESP_OK;
 }
