@@ -26,8 +26,11 @@ void log_error_if_nonzero(const char *message, int error_code);
 void received_data(cJSON *root, char* topic, size_t len);
 
 //Function to check if the device is being provision with his access token in this case the access token is store
-bool isProvision(cJSON *root, char* topic, size_t len);
+bool is_provision(cJSON *root, char* topic, size_t len);
+
 esp_err_t mqtt_set_access_token(char* token, size_t token_len);
+
+esp_err_t send_messure(char * data_to_send)
 
 /*
  * @brief Event handler registered to receive MQTT events

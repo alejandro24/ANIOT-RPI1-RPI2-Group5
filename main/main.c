@@ -181,6 +181,21 @@ static esp_err_t init_i2c(i2c_master_bus_handle_t *bus_handle)
     return ESP_OK;
 }
 
+char* prepare_meassure_send(long ts, sgp30_measurement_t measurement){
+    cJSON *json_data = cJSON_CreateObject();
+    cJSON *measurement_json = cJSON_CreateObject();
+    char *data_to_send;
+    cJSON_AddNumberToObject(json_data, "ts", ts);
+    cJSON_AddNumberToObject(measurement_json, "eCO2", measurement.eCO2);
+    cJSON_AddNumberToObject(measurement_json, "TVOC", measurement.TVOC);
+    cJSON_AddItemToObjectCS(jsonData, "values", measurement_json);
+    data_to_send = cJSON_Print(json_data);
+
+    cJSON_Delete(json_data);
+    cJSON_Delete(measurement_json)
+    return data_to_send;
+}
+
 void app_main(void) {
 
 

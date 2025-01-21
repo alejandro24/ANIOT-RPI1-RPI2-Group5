@@ -34,8 +34,13 @@
 #define PROVISION_REQUEST_TOPIC "/provision/request"
 #define PROVISION_RESPONSE_TOPIC "/provision/response"
 
-//static const uint8_t mqtt_server_pem_start[] asm("_binary_server_pem_start");
-//static const uint8_t mqtt_server_pem_end[] asm("_binary_server_pem_end");
+extern const uint8_t server_pem_start[] asm("_binary_server_pem_start");
+extern const uint8_t server_pem_end[] asm("_binary_server_pem_end");
+extern const uint8_t chain_pem_start[] asm("_binary_chain_pem_start");
+extern const uint8_t chain_pem_end[] asm("_binary_chain_pem_end");
+extern const uint8_t deviceKey_pem_start[] asm("_binary_deviceKey_pem_start");
+extern const uint8_t deviceKey_pem_end[] asm("_binary_deviceKey_pem_end");
+
 static const char *TAG = "mqtt_thingsboard";
 esp_event_loop_handle_t event_loop;
 esp_mqtt_client_handle_t client;
@@ -162,7 +167,7 @@ void received_data(cJSON *root, char* topic, size_t topic_len){
     }
 }
 
-bool isProvision(cJSON *root, char* topic, size_t topic_len){
+bool is_provision(cJSON *root, char* topic, size_t topic_len){
     cJSON *receive;
 
     if(strncmp(topic, PROVISION_RESPONSE_TOPIC, topic_len) == 0){
@@ -175,6 +180,14 @@ bool isProvision(cJSON *root, char* topic, size_t topic_len){
         }
     }
     return false;
+}
+
+esp_err_t send_messure(char * data_to_send){
+    ESP_ERROR_CHECK(esp_mqtt_client_publish(client, "v1/devices/me/telemetry", data_to_send, 0, 1, 0));
+
+    cJSON_free(data_to_send);
+
+    return ESP_OK;
 }
 
 void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
@@ -217,7 +230,7 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
         printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
         printf("DATA=%.*s\r\n", event->data_len, event->data);
         cJSON *jsonData = cJSON_Parse(event->data);
-        if(isProvision(jsonData, event->topic, event->topic_len)){
+        if(is_provision(jsonData, event->topic, event->topic_len)){
             xSemaphoreGive(is_provisioned);
         }
         else{
@@ -255,12 +268,18 @@ esp_err_t mqtt_set_access_token(char* token, size_t token_len) {
 esp_err_t mqtt_provision(thingsboard_url_t thingsboard_url)
 {
     esp_mqtt_client_config_t mqtt_cfg = {
-        .broker.address.uri = thingsboard_url,
-        .broker.address.port = 8883,
-        //.broker.verification.certificate = (char*) mqtt_server_pem_start,
-        //.broker.verification.certificate_len = mqtt_server_pem_end - mqtt_server_pem_start,
-        .credentials.username = THINGSBOARD_PROVISION_USERNAME,
-    };
+        .broker{
+            .address.uri = thingsboard_url,
+            .address.port = 8883,
+            .verification.certificate = (const char *)server_pem_start,
+        },
+        .credentials = {
+            .authentication = {
+            .certificate = (const char *) deviceKey_pem_start,
+            .key = (const char *) chain_pem_start,
+            },
+        };
+    }
 
     is_provisioned = xSemaphoreCreateBinary();
 
@@ -304,10 +323,18 @@ esp_err_t mqtt_init(
     event_loop = loop;
 
     esp_mqtt_client_config_t mqtt_cfg = {
-        .broker.address.uri = thingsboard_url,
-        .broker.address.port = 1883,
-        .credentials.username = access_token,
-    };
+        .broker{
+            .address.uri = thingsboard_url,
+            .address.port = 8883,
+            .verification.certificate = (const char *)server_pem_start,
+        },
+        .credentials = {
+            .authentication = {
+            .certificate = (const char *) deviceKey_pem_start,
+            .key = (const char *) chain_pem_start,
+            },
+        };
+    }
 
     client = esp_mqtt_client_init(&mqtt_cfg);
     if (client == NULL) {
