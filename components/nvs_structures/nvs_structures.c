@@ -5,9 +5,11 @@
 #include "esp_err.h"
 #include "esp_check.h"
 #include "nvs_flash.h"
+#include "softAP_provision.h"
 
 #define SGP30_STORAGE_NAMESPACE "sgp30"
 #define SGP30_NVS_BASELINE_KEY "baseline"
+#define SOFTAP_NVS_WIFI_CREDENTIALS_KEY "wifi_credentials"
 
 #define TAG "NVS"
 static nvs_handle_t storage_handle;
@@ -21,11 +23,41 @@ esp_err_t storage_get_sgp30_timed_measurement(
 ) {
     return nvs_get_sgp30_timed_measurement(sgp30_log_entry_handle);
 }
+esp_err_t storage_get_wifi_credentials(
+    wifi_credentials_t *sgp30_log_entry_handle
+) {
+    return nvs_get_wifi_credentials(sgp30_log_entry_handle);
+}
 
 esp_err_t storage_get_thingsboard_url(
     thingsboard_url_t thingsboard_url_handle
 ) {
     return nvs_get_thingsboard_url(thingsboard_url_handle);
+}
+esp_err_t nvs_get_wifi_credentials(
+    wifi_credentials_t *wifi_credentials
+) {
+    size_t wifi_credentials_len;
+    char* key = SOFTAP_NVS_WIFI_CREDENTIALS_KEY;
+    ESP_RETURN_ON_ERROR(
+        nvs_get_blob(
+            storage_handle,
+            key,
+            NULL,
+            &wifi_credentials_len
+        ),
+        TAG, "Could not get baseline len from NVS"
+    );
+    ESP_RETURN_ON_ERROR(
+        nvs_get_blob(
+            storage_handle,
+            key,
+            wifi_credentials,
+            &wifi_credentials_len
+        ),
+        TAG, "Could not get baseline from NVS"
+    );
+    return ESP_OK;
 }
 
 esp_err_t nvs_get_sgp30_timed_measurement(
@@ -53,6 +85,7 @@ esp_err_t nvs_get_sgp30_timed_measurement(
     );
     return ESP_OK;
 }
+
 esp_err_t nvs_get_thingsboard_url(
     thingsboard_url_t thingsboard_url_handle
 ) {

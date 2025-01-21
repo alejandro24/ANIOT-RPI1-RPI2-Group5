@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include "sgp30_types.h"
 #include "sgp30.h"
 
 ESP_EVENT_DEFINE_BASE(SGP30_EVENT);
@@ -136,12 +137,12 @@ static esp_err_t sgp30_functioning(
     return ESP_OK;
 }
 
-static const sgp30_state_operation_t state_operation[] = {
-    { SGP30_STATE_UNINITIAZED, sgp30_uninitialized },
-    { SGP30_STATE_INITIALIZING, sgp30_initializing },
-    { SGP30_STATE_BASELINE_ACQUISITION, sgp30_baseline_acquisition },
-    { SGP30_STATE_FUNCTIONING, sgp30_functioning }
-};
+//static const sgp30_state_operation_t state_operation[] = {
+//    { SGP30_STATE_UNINITIAZED, sgp30_uninitialized },
+//    { SGP30_STATE_INITIALIZING, sgp30_initializing },
+//    { SGP30_STATE_BASELINE_ACQUISITION, sgp30_baseline_acquisition },
+//    { SGP30_STATE_FUNCTIONING, sgp30_functioning }
+//};
 
 void sgp30_operation_task(void *args) {
     sgp30_measurement_t *baseline_handle = ((sgp30_measurement_t*) args);

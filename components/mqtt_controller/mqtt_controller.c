@@ -1,5 +1,3 @@
-#include <stdio.h>
-#include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
@@ -25,6 +23,7 @@
 #include "portmacro.h"
 #include <sys/param.h>
 #include "mqtt_controller.h"
+#include "thingsboard_types.h"
 
 #define MAX_ACCESS_TOKEN_LEN 40
 #define MAX_PROVISIONING_WAIT portMAX_DELAY
@@ -174,7 +173,6 @@ bool is_provision(cJSON *root, char* topic, size_t topic_len){
         receive = cJSON_GetObjectItem(root, "status");
         if(strcmp(receive->valuestring, "SUCCESS") == 0){
             receive = cJSON_GetObjectItem(root, "credentialsValue");
-            strlen(receive->valuestring);
             mqtt_set_access_token(receive->valuestring, strlen(receive->valuestring));
             return true;
         }
@@ -268,18 +266,12 @@ esp_err_t mqtt_set_access_token(char* token, size_t token_len) {
 esp_err_t mqtt_provision(thingsboard_url_t thingsboard_url)
 {
     esp_mqtt_client_config_t mqtt_cfg = {
-        .broker{
-            .address.uri = thingsboard_url,
-            .address.port = 8883,
-            .verification.certificate = (const char *)server_pem_start,
-        },
-        .credentials = {
-            .authentication = {
-            .certificate = (const char *) deviceKey_pem_start,
-            .key = (const char *) chain_pem_start,
-            },
-        };
-    }
+        .broker.address.uri = thingsboard_url,
+        .broker.address.port = 8883,
+        .broker.verification.certificate = (const char *)server_pem_start,
+        .credentials.authentication.certificate = (const char *) deviceKey_pem_start,
+        .credentials.authentication.key = (const char *) chain_pem_start,
+    };
 
     is_provisioned = xSemaphoreCreateBinary();
 
@@ -323,18 +315,12 @@ esp_err_t mqtt_init(
     event_loop = loop;
 
     esp_mqtt_client_config_t mqtt_cfg = {
-        .broker{
-            .address.uri = thingsboard_url,
-            .address.port = 8883,
-            .verification.certificate = (const char *)server_pem_start,
-        },
-        .credentials = {
-            .authentication = {
-            .certificate = (const char *) deviceKey_pem_start,
-            .key = (const char *) chain_pem_start,
-            },
-        };
-    }
+        .broker.address.uri = thingsboard_url,
+        .broker.address.port = 8883,
+        .broker.verification.certificate = (const char *)server_pem_start,
+        .credentials.authentication.certificate = (const char *) deviceKey_pem_start,
+        .credentials.authentication.key = (const char *) chain_pem_start,
+    };
 
     client = esp_mqtt_client_init(&mqtt_cfg);
     if (client == NULL) {

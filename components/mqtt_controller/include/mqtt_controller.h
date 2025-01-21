@@ -6,10 +6,10 @@
 #include "cJSON.h"
 #include "esp_event_base.h"
 #include "mqtt_client.h"
+#include "thingsboard_types.h"
 
 ESP_EVENT_DECLARE_BASE(MQTT_THINGSBOARD_EVENT);
 
-typedef char thingsboard_url_t[100];
 
 typedef enum {
     MQTT_NEW_SEND_TIME,
@@ -29,8 +29,6 @@ void received_data(cJSON *root, char* topic, size_t len);
 bool is_provision(cJSON *root, char* topic, size_t len);
 
 esp_err_t mqtt_set_access_token(char* token, size_t token_len);
-
-esp_err_t send_messure(char * data_to_send)
 
 /*
  * @brief Event handler registered to receive MQTT events

@@ -4,6 +4,7 @@
 #include <string.h>
 #include "esp_err.h"
 #include "esp_event.h"
+#include "softap_provision_types.h"
 
 
 #define PROV_QR_VERSION         "v1"
@@ -16,13 +17,6 @@
 typedef enum {
     THINGSBOARD_URL_OBTAINED,
 } provision_event_t;
-
-//[NVS]
-typedef struct {
-    char ssid[32];
-    char password[64];
-} wifi_credentials_t;
-
 
 #if CONFIG_EXAMPLE_PROV_SECURITY_VERSION_2
 #if CONFIG_EXAMPLE_PROV_SEC2_DEV_MODE

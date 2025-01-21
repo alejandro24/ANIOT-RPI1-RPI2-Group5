@@ -10,12 +10,12 @@
 #include "driver/i2c_master.h"
 #include <stdint.h>
 #include <time.h>
+#include "sgp30_types.h"
 
 #define SGP30_I2C_ADDR ((uint8_t) 0x58) /* I2C address of SGP30 sensor */
 #define SGP30_CRC_8_POLY ((uint8_t) 0x31) /* CRC-8 generator polynomial */
 #define SGP30_CRC_8_INIT ((uint8_t) 0xFF) /* CRC-8 generator polynomial */
 
-#define MAX_QUEUE_SIZE 12
 #define ZERO_OUT_QUEUE_ON_DEQUEUE
 
 // States for the SGP30 FSM
@@ -60,21 +60,6 @@ typedef enum {
     SGP30_REG_GET_SERIAL_ID = 0x3682,
 } sgp30_register_rw_t;
 
-typedef struct {
-    uint16_t eCO2;
-    uint16_t TVOC;
-} sgp30_measurement_t;
-
-typedef struct {
-    size_t oldest_index;
-    size_t size;
-    sgp30_measurement_t measurements[MAX_QUEUE_SIZE];
-} sgp30_measurement_log_t;
-
-typedef struct {
-    sgp30_measurement_t measurement;
-    time_t time;
-} sgp30_timed_measurement_t;
 
 ESP_EVENT_DECLARE_BASE(SGP30_EVENT);
 

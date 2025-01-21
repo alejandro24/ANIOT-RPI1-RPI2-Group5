@@ -1,10 +1,9 @@
 #ifndef NVS_STRUCTURES_H
 #define NVS_STRUCTURES_H
-#include "nvs.h"
-#include "sgp30.h"
+#include "softap_provision_types.h"
+#include "sgp30_types.h"
+#include "thingsboard_types.h"
 #include "nvs_flash.h"
-#include "mqtt_controller.h"
-#include "softAP_provision.h"
 
 #define storage_get(X)                                            \
     _Generic( (X),                                                \
