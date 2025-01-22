@@ -5,11 +5,61 @@
 This is the simplest buildable example. The example is used by command `idf.py create-project`
 that copies the project to user specified path and set it's name. For more information follow the [docs page](https://docs.espressif.com/projects/esp-idf/en/latest/api-guides/build-system.html#start-a-new-project)
 
-
-
+## Prerequisites
+hardware:
+ESP32 development board (e.g., ESP32-WROOM-32).
+Air quality sensor (e.g., MQ-135 or similar).
+USB cable for flashing firmware.
+Software:
+ESP-IDF v5.x or later.
+Python 3.8+
+VS C0ODE
+Tools:
+Text editor or IDE with ESP-IDF support 
+Serial monitor
+## QUICK START
+git clone
+Configure WiFi credentials and ThingsBoard settings
+idf.py build
+idf.py flash
+idf.py monitor
+## Features
+Real-time SNTP synchronization for accurate timestamps.
+Reliable WiFi provisioning with fallback to offline mode.
+Data buffering using MINUTES and HOURS buffers for robustness.
+OTA firmware update support.
+Low power consumption with deep sleep functionality.
+Integration with ThingsBoard for dashboard analytics.
 ## How to use example
 We encourage the users to use the example as a template for the new projects.
 A recommended way is to follow the instructions on a [docs page](https://docs.espressif.com/projects/esp-idf/en/latest/api-guides/build-system.html#start-a-new-project).
+## Hardware Configuration
+I2C Configuration:
+SCL (clock line): GPIO 22
+SDA (data line): GPIO 21
+## Key Dependencies
+esp_wifi: For Wi-Fi management.
+esp_event: Event loop and event handling.
+nvs_flash: Non-volatile storage for saving Wi-Fi credentials and other settings.
+sntp_sync: Synchronizing system time with an SNTP server.
+freertos: Real-time multitasking.
+## Key Functional Highlights
+Wi-Fi Provisioning:
+
+SoftAP provisioning for initial setup.
+Event-driven Wi-Fi connection handling with exponential backoff on failures.
+Time Synchronization:
+
+Uses SNTP for system time alignment.
+Attempts up to 10 retries with a 2-second delay for synchronization.
+SGP30 Sensor Events:
+
+Monitors for new air quality measurements (eCO2 and TVOC).
+Logs baseline values with timestamps.
+Offline Buffering:
+
+Data is stored in memory when offline and synced to ThingsBoard upon reconnection.
+
 
 ## Example folder contents
 
