@@ -11,16 +11,19 @@
 #include <esp_log.h>
 #include <esp_wifi.h>
 #include <esp_event.h>
-#include <nvs_flash.h>
 
 #include <wifi_provisioning/manager.h>
 
 #include <wifi_provisioning/scheme_softap.h>
+#include "lwip/err.h"
+#include "lwip/sys.h"
 #include "qrcode.h"
 #include "softAP_provision.h"
 
 static const char *TAG = "softAP_provisioning";
-static char thingsboard_url[100];
+//[NVS]
+char *provision_thingsboard_url;
+wifi_credentials_t *provision_wifi_credentials;
 static EventGroupHandle_t provision_event_group;
 
 #if CONFIG_EXAMPLE_PROV_SECURITY_VERSION_2
@@ -66,6 +69,10 @@ void provision_event_handler(void* arg, esp_event_base_t event_base,
                         "\n\tSSID     : %s\n\tPassword : %s",
                         (const char *) wifi_sta_cfg->ssid,
                         (const char *) wifi_sta_cfg->password);
+            strncpy(provision_wifi_credentials->ssid, (const char *) wifi_sta_cfg->ssid, sizeof(provision_wifi_credentials->ssid) - 1);
+            provision_wifi_credentials->ssid[sizeof(provision_wifi_credentials->ssid) - 1] = '\0'; // Asegurar terminación en null
+            strncpy(provision_wifi_credentials->password, (const char *) wifi_sta_cfg->password, sizeof(provision_wifi_credentials->password) - 1);
+            provision_wifi_credentials->password[sizeof(provision_wifi_credentials->password) - 1] = '\0'; // Asegurar terminación en null
             break;
         }
         case WIFI_PROV_CRED_FAIL: {
@@ -127,7 +134,8 @@ esp_err_t thingsboard_url_prov_data_handler(uint32_t session_id, const uint8_t *
 {
     if (inbuf) {
         ESP_LOGI(TAG, "Received data: %.*s", inlen, (char *)inbuf);
-        snprintf(thingsboard_url, sizeof(thingsboard_url), "%.*s", (int)inlen, (char *)inbuf);
+        //snprintf(thingsboard_url, sizeof(thingsboard_url), "%.*s", (int)inlen, (char *)inbuf);
+        strcpy(provision_thingsboard_url, (char *)inbuf);
     }
     char response[] = "SUCCESS";
     *outbuf = (uint8_t *)strdup(response);
@@ -170,9 +178,11 @@ void wifi_prov_print_qr(const char *name, const char *username, const char *pop,
     ESP_LOGI(TAG, "If QR code is not visible, copy paste the below URL in a browser.\n%s?data=%s", QRCODE_BASE_URL, payload);
 }
 
-esp_err_t softAP_provision_init(EventGroupHandle_t event_group){
+esp_err_t softAP_provision_init(EventGroupHandle_t event_group, char *main_thingsboard_url, wifi_credentials_t *main_wifi_credentials ){
 
     provision_event_group = event_group;
+    provision_wifi_credentials = main_wifi_credentials;
+    provision_thingsboard_url = main_thingsboard_url;
     
     /* Initialize TCP/IP */
     ESP_RETURN_ON_ERROR(esp_netif_init(), TAG, "Error iniciando TCP/IP");
@@ -187,98 +197,115 @@ esp_err_t softAP_provision_init(EventGroupHandle_t event_group){
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_RETURN_ON_ERROR(esp_wifi_init(&cfg), TAG, "Error iniciando la configuracion Wifi");
 
+    if(strlen(provision_wifi_credentials->password) == 0 || strlen(provision_wifi_credentials->ssid) == 0 || strlen(provision_thingsboard_url) == 0){
         /* Configuration for the provisioning manager */
-    wifi_prov_mgr_config_t config = {
-        .scheme = wifi_prov_scheme_softap,
-        /*This can be set to
-         * WIFI_PROV_EVENT_HANDLER_NONE when using wifi_prov_scheme_softap*/
-        .scheme_event_handler = WIFI_PROV_EVENT_HANDLER_NONE
-    };
-    /* Initialize provisioning manager with the
-     * configuration parameters set above */
-    ESP_RETURN_ON_ERROR(wifi_prov_mgr_init(config),TAG, "Fallo iniciando el provisionamiento");
-    
-    char service_name[12];
-    get_device_service_name(service_name, sizeof(service_name));
+        wifi_prov_mgr_config_t config = {
+            .scheme = wifi_prov_scheme_softap,
+            /*This can be set to
+            * WIFI_PROV_EVENT_HANDLER_NONE when using wifi_prov_scheme_softap*/
+            .scheme_event_handler = WIFI_PROV_EVENT_HANDLER_NONE
+        };
+        /* Initialize provisioning manager with the
+        * configuration parameters set above */
+        ESP_RETURN_ON_ERROR(wifi_prov_mgr_init(config),TAG, "Fallo iniciando el provisionamiento");
+        
+        char service_name[12];
+        get_device_service_name(service_name, sizeof(service_name));   
 
     #ifdef CONFIG_EXAMPLE_PROV_SECURITY_VERSION_1
-        /* What is the security level that we want (1, 2):
-         *      - WIFI_PROV_SECURITY_0 is simply plain text communication.
-         *      - WIFI_PROV_SECURITY_1 is secure communication which consists of secure handshake
-         *          using X25519 key exchange and proof of possession (pop) and AES-CTR
-         *          for encryption/decryption of messages.
-         *      - WIFI_PROV_SECURITY_2 SRP6a based authentication and key exchange
-         *        + AES-GCM encryption/decryption of messages
-         */
-        wifi_prov_security_t security = WIFI_PROV_SECURITY_1;
+            /* What is the security level that we want (1, 2):
+            *      - WIFI_PROV_SECURITY_0 is simply plain text communication.
+            *      - WIFI_PROV_SECURITY_1 is secure communication which consists of secure handshake
+            *          using X25519 key exchange and proof of possession (pop) and AES-CTR
+            *          for encryption/decryption of messages.
+            *      - WIFI_PROV_SECURITY_2 SRP6a based authentication and key exchange
+            *        + AES-GCM encryption/decryption of messages
+            */
+            wifi_prov_security_t security = WIFI_PROV_SECURITY_1;
 
-        /* Do we want a proof-of-possession (ignored if Security 0 is selected):
-         *      - this should be a string with length > 0
-         *      - NULL if not used
-         */
-        const char *pop = "abcd1234";
+            /* Do we want a proof-of-possession (ignored if Security 0 is selected):
+            *      - this should be a string with length > 0
+            *      - NULL if not used
+            */
+            const char *pop = "abcd1234";
 
-        /* This is the structure for passing security parameters
-         * for the protocomm security 1.
-         */
-        wifi_prov_security1_params_t *sec_params = pop;
+            /* This is the structure for passing security parameters
+            * for the protocomm security 1.
+            */
+            wifi_prov_security1_params_t *sec_params = pop;
 
-        const char *username  = NULL;
+            const char *username  = NULL;
 
-#elif CONFIG_EXAMPLE_PROV_SECURITY_VERSION_2
-        wifi_prov_security_t security = WIFI_PROV_SECURITY_2;
-        /* The username must be the same one, which has been used in the generation of salt and verifier */
+    #elif CONFIG_EXAMPLE_PROV_SECURITY_VERSION_2
+            wifi_prov_security_t security = WIFI_PROV_SECURITY_2;
+            /* The username must be the same one, which has been used in the generation of salt and verifier */
 
-#if CONFIG_EXAMPLE_PROV_SEC2_DEV_MODE
-        /* This pop field represents the password that will be used to generate salt and verifier.
-         * The field is present here in order to generate the QR code containing password.
-         * In production this password field shall not be stored on the device */
-        const char *username  = EXAMPLE_PROV_SEC2_USERNAME;
-        const char *pop = EXAMPLE_PROV_SEC2_PWD;
-#elif CONFIG_EXAMPLE_PROV_SEC2_PROD_MODE
-        /* The username and password shall not be embedded in the firmware,
-         * they should be provided to the user by other means.
-         * e.g. QR code sticker */
-        const char *username  = NULL;
-        const char *pop = NULL;
-#endif
-        /* This is the structure for passing security parameters
-         * for the protocomm security 2.
-         * If dynamically allocated, sec2_params pointer and its content
-         * must be valid till WIFI_PROV_END event is triggered.
-         */
-        wifi_prov_security2_params_t sec2_params = {};
+    #if CONFIG_EXAMPLE_PROV_SEC2_DEV_MODE
+            /* This pop field represents the password that will be used to generate salt and verifier.
+            * The field is present here in order to generate the QR code containing password.
+            * In production this password field shall not be stored on the device */
+            const char *username  = EXAMPLE_PROV_SEC2_USERNAME;
+            const char *pop = EXAMPLE_PROV_SEC2_PWD;
+    #elif CONFIG_EXAMPLE_PROV_SEC2_PROD_MODE
+            /* The username and password shall not be embedded in the firmware,
+            * they should be provided to the user by other means.
+            * e.g. QR code sticker */
+            const char *username  = NULL;
+            const char *pop = NULL;
+    #endif
+            /* This is the structure for passing security parameters
+            * for the protocomm security 2.
+            * If dynamically allocated, sec2_params pointer and its content
+            * must be valid till WIFI_PROV_END event is triggered.
+            */
+            wifi_prov_security2_params_t sec2_params = {};
 
-        ESP_RETURN_ON_ERROR(example_get_sec2_salt(&sec2_params.salt, &sec2_params.salt_len),TAG, "Fallo al obtener el salt");
-        ESP_RETURN_ON_ERROR(example_get_sec2_verifier(&sec2_params.verifier, &sec2_params.verifier_len),TAG, "Fallo al obtener verificacion");
+            ESP_RETURN_ON_ERROR(example_get_sec2_salt(&sec2_params.salt, &sec2_params.salt_len),TAG, "Fallo al obtener el salt");
+            ESP_RETURN_ON_ERROR(example_get_sec2_verifier(&sec2_params.verifier, &sec2_params.verifier_len),TAG, "Fallo al obtener verificacion");
 
-        wifi_prov_security2_params_t *sec_params = &sec2_params;
-#endif
+            wifi_prov_security2_params_t *sec_params = &sec2_params;
+    #endif
 
-    /* What is the service key (could be NULL)
-    * This translates to :
-    *     - Wi-Fi password when scheme is wifi_prov_scheme_softap
-    *          (Minimum expected length: 8, maximum 64 for WPA2-PSK)
-    *     - simply ignored when scheme is wifi_prov_scheme_ble
-    */
-    const char *service_key = NULL;
+        /* What is the service key (could be NULL)
+        * This translates to :
+        *     - Wi-Fi password when scheme is wifi_prov_scheme_softap
+        *          (Minimum expected length: 8, maximum 64 for WPA2-PSK)
+        *     - simply ignored when scheme is wifi_prov_scheme_ble
+        */
+        const char *service_key = NULL;
 
-    /* An endpoint that applications create to get the
-    *thingsboard url.
-    * This call must be made before starting the provisioning.
-    */
-    wifi_prov_mgr_endpoint_create("thingsboard-url");
+        /* An endpoint that applications create to get the
+        *thingsboard url.
+        * This call must be made before starting the provisioning.
+        */
+        wifi_prov_mgr_endpoint_create("thingsboard-url");
 
-    /* Start provisioning service */
-    ESP_RETURN_ON_ERROR(wifi_prov_mgr_start_provisioning(security, (const void *) sec_params, service_name, service_key), TAG, "Fallo al empezar el provisionamiento");
+        /* Start provisioning service */
+        ESP_RETURN_ON_ERROR(wifi_prov_mgr_start_provisioning(security, (const void *) sec_params, service_name, service_key), TAG, "Fallo al empezar el provisionamiento");
 
-    /* The handler for the optional endpoint created above.
-    * This call must be made after starting the provisioning, and only if the endpoint
-    * has already been created above.
-    */
-    wifi_prov_mgr_endpoint_register("thingsboard-url", thingsboard_url_prov_data_handler, NULL);
+        /* The handler for the optional endpoint created above.
+        * This call must be made after starting the provisioning, and only if the endpoint
+        * has already been created above.
+        */
+        wifi_prov_mgr_endpoint_register("thingsboard-url", thingsboard_url_prov_data_handler, NULL);
 
-    wifi_prov_print_qr(service_name, username, pop, PROV_TRANSPORT_SOFTAP);
+        wifi_prov_print_qr(service_name, username, pop, PROV_TRANSPORT_SOFTAP);
+    }
+    else{
+        wifi_config_t wifi_config = {
+            .sta = {
+                    .threshold.authmode = WIFI_AUTH_WPA2_PSK,
+                },
+        };
+        memcpy(wifi_config.sta.ssid, provision_wifi_credentials->ssid, strlen(provision_wifi_credentials->ssid));
+        memcpy(wifi_config.sta.password, provision_wifi_credentials->password, strlen(provision_wifi_credentials->password));
+        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
+        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
+        ESP_ERROR_CHECK(esp_wifi_start());
+
+        ESP_LOGI(TAG, "wifi_init_sta finished.");
+        xEventGroupSetBits(provision_event_group, PROVISION_DONE_EVENT);
+    }
 
     return ESP_OK;
 }

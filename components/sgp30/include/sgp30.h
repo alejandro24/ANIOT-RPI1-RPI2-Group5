@@ -10,12 +10,12 @@
 #include "driver/i2c_master.h"
 #include <stdint.h>
 #include <time.h>
+#include "sgp30_types.h"
 
 #define SGP30_I2C_ADDR ((uint8_t) 0x58) /* I2C address of SGP30 sensor */
 #define SGP30_CRC_8_POLY ((uint8_t) 0x31) /* CRC-8 generator polynomial */
 #define SGP30_CRC_8_INIT ((uint8_t) 0xFF) /* CRC-8 generator polynomial */
 
-#define MAX_QUEUE_SIZE 12
 #define ZERO_OUT_QUEUE_ON_DEQUEUE
 
 // States for the SGP30 FSM
@@ -27,6 +27,11 @@ typedef enum {
     SGP30_STATE_FUNCTIONING,
 } sgp30_state_t;
 
+typedef struct {
+    sgp30_state_t state;
+    esp_err_t (*operation) (void);
+} sgp30_state_operation_t;
+
 typedef enum {
     SGP30_EVENT_NEW_MEASUREMENT,
     SGP30_EVENT_IAQ_INITIALIZING,
@@ -35,6 +40,11 @@ typedef enum {
     SGP30_EVENT_BASELINE_SET,
     SGP30_EVENT_NEW_INTERVAL,
 } sgp30_event_id_t ;
+
+typedef struct {
+    sgp30_event_id_t event_id;
+    esp_event_handler_t event_handler;
+} sgp30_event_handler_register_t;
 
 // SGP30 register write only addresses
 // SGP30 register read and write addresses
@@ -50,43 +60,23 @@ typedef enum {
     SGP30_REG_GET_SERIAL_ID = 0x3682,
 } sgp30_register_rw_t;
 
-typedef struct {
-    uint16_t eCO2;
-    uint16_t TVOC;
-} sgp30_measurement_t;
-
-// [NVS]
-typedef struct {
-    time_t tv;
-    sgp30_measurement_t measurements;
-} sgp30_log_entry_t;
-
-// [NVS]
-typedef struct {
-    size_t head;
-    size_t size;
-    sgp30_log_entry_t measurements[MAX_QUEUE_SIZE];
-} sgp30_log_t;
-
-typedef struct {
-    sgp30_measurement_t mean;
-    size_t count;
-} sgp30_aggregate_t;
-
-esp_err_t sgp30_update_aggregate(sgp30_aggregate_t *aggregate, const sgp30_measurement_t *new_measurement);
 
 ESP_EVENT_DECLARE_BASE(SGP30_EVENT);
 
-esp_err_t sgp30_measurement_to_log_entry(const sgp30_measurement_t *in_measurement, const time_t *now, sgp30_log_entry_t *out_log_entry);
-esp_err_t sgp30_log_entry_to_valid_baseline_or_null(const sgp30_log_entry_t *in_log_entry, sgp30_measurement_t *out_measurement);
+bool sgp30_is_baseline_expired(time_t stored, time_t current);
 
-esp_err_t sgp30_measurement_enqueue(
-    const sgp30_log_entry_t *m,
-    sgp30_log_t *q);
+esp_err_t sgp30_measurement_log_get_mean(
+    sgp30_measurement_t *m,
+    const sgp30_measurement_log_t *q);
 
-esp_err_t sgp30_measurement_dequeue(
-    sgp30_log_entry_t *m,
-    sgp30_log_t *q);
+esp_err_t sgp30_measurement_log_enqueue(
+    const sgp30_measurement_t *m,
+    sgp30_measurement_log_t *q);
+
+esp_err_t sgp30_measurement_log_dequeue(
+    sgp30_measurement_t *m,
+    sgp30_measurement_log_t *q);
+
 /**
  * @brief Creates a handle for the SGP30 device on the specified I2C bus.
  *
@@ -104,7 +94,7 @@ esp_err_t sgp30_device_create(
     const uint16_t dev_addr,
     const uint32_t dev_speed);
 
-esp_err_t sgp30_request_measurement();
+esp_err_t sgp30_restart_measuring(uint64_t new_measurement_interval_us);
 /**
  * @brief Deletes the SGP30 device instance.
  *
@@ -130,7 +120,7 @@ esp_err_t sgp30_init(
 /**
  * UNDOCUMENTED
  */
-esp_err_t sgp30_start_measuring();
+esp_err_t sgp30_start_measuring(uint64_t us);
 /**
  * @brief Initiates the measurement capabilities of the SGP30 device.
  *
@@ -184,4 +174,4 @@ esp_err_t sgp30_get_id();
  * TODO DOCUMENTATION
     */
 
-#endif
+#endif // SGP30_H
