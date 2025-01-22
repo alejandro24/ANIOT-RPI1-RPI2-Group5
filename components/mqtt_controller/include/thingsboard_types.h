@@ -21,6 +21,6 @@ typedef struct {
     thingsboard_address_t address;
     thingsboard_verification_t verification;
     thingsboard_credentials_t credentials;
-} thingsboard_cgf_t;
+} thingsboard_cfg_t;
 
 #endif // !THINGSBOARD_TYPES_H
