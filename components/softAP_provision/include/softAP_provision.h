@@ -4,6 +4,7 @@
 #include <string.h>
 #include "esp_err.h"
 #include "esp_event.h"
+#include "thingsboard_types.h"
 #include "softap_provision_types.h"
 
 
@@ -76,5 +77,10 @@ esp_err_t thingsboard_url_prov_data_handler(uint32_t session_id, const uint8_t *
 
 void wifi_prov_print_qr(const char *name, const char *username, const char *pop, const char *transport);
 
-esp_err_t softAP_provision_init(EventGroupHandle_t event_group, char *thingsboard_url, wifi_credentials_t *wifi_credentials);
+thingsboard_cfg_t get_thingsboard_cfg();
+
+wifi_credentials_t get_wifi_credentials();
+
+esp_err_t softAP_provision_init(thingsboard_cfg_t *thingsboard_cfg, wifi_credentials_t *wifi_credentials);
+
 #endif // SOFTAP_PROVISION_H

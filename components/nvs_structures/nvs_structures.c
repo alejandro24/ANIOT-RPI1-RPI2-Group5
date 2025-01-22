@@ -165,7 +165,7 @@ esp_err_t nvs_set_thingboard_cfg(const thingsboard_cfg_t *thingsboard_cfg) {
 
 esp_err_t storage_get_thingboard_cfg(thingsboard_cfg_t *thingsboard_cfg)
 {
-    return nvs_get_thingboard_cfg(thingsboard_cfg);
+    return nvs_get_thingsboard_cfg(thingsboard_cfg);
 }
 
 esp_err_t nvs_get_thingsboard_cfg(thingsboard_cfg_t *cfg)

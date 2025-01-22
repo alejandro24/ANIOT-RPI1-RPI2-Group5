@@ -42,7 +42,6 @@ esp_event_loop_handle_t imc_event_loop_handle;
 SemaphoreHandle_t sgp30_req_measurement;
 sgp30_measurement_log_t sgp30_log;
 uint16_t send_time = 30;
-static EventGroupHandle_t provision_event_group;
 thingsboard_cfg_t thingsboard_cfg;
 wifi_credentials_t wifi_credentials;
 
@@ -242,11 +241,7 @@ void app_main(void) {
         ESP_LOGE(TAG, "Provisioning State Corrupt");
     }
     //Start the init of the provision component, we actively wait it to finish the provision to continue
-    provision_event_group = xEventGroupCreate();
-    ESP_ERROR_CHECK(softAP_provision_init(provision_event_group, thingsboard_cfg, wifi_credentials));
-
-    /* Wait for Provision*/
-    xEventGroupWaitBits(provision_event_group, PROVISION_DONE_EVENT, true, true, portMAX_DELAY);
+    ESP_ERROR_CHECK(softAP_provision_init(&thingsboard_cfg, &wifi_credentials));
 
     // At this point a valid time is required
     // We start the sensor

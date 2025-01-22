@@ -4,7 +4,6 @@
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <freertos/event_groups.h>
 #include "esp_err.h"
 #include "esp_check.h"
 
@@ -18,13 +17,15 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 #include "qrcode.h"
+#include "thingsboard_types.h"
 #include "softAP_provision.h"
 
 static const char *TAG = "softAP_provisioning";
 //[NVS]
 char *provision_thingsboard_url;
-wifi_credentials_t *provision_wifi_credentials;
-static EventGroupHandle_t provision_event_group;
+wifi_credentials_t provision_wifi_credentials;
+thingsboard_cfg_t provision_thingsboard_cfg;
+static SemaphoreHandle_t is_provisioned;
 
 #if CONFIG_EXAMPLE_PROV_SECURITY_VERSION_2
 esp_err_t example_get_sec2_salt(const char **salt, uint16_t *salt_len) {
@@ -69,10 +70,10 @@ void provision_event_handler(void* arg, esp_event_base_t event_base,
                         "\n\tSSID     : %s\n\tPassword : %s",
                         (const char *) wifi_sta_cfg->ssid,
                         (const char *) wifi_sta_cfg->password);
-            strncpy(provision_wifi_credentials->ssid, (const char *) wifi_sta_cfg->ssid, sizeof(provision_wifi_credentials->ssid) - 1);
-            provision_wifi_credentials->ssid[sizeof(provision_wifi_credentials->ssid) - 1] = '\0'; // Asegurar terminación en null
-            strncpy(provision_wifi_credentials->password, (const char *) wifi_sta_cfg->password, sizeof(provision_wifi_credentials->password) - 1);
-            provision_wifi_credentials->password[sizeof(provision_wifi_credentials->password) - 1] = '\0'; // Asegurar terminación en null
+            strncpy(provision_wifi_credentials.ssid, (const char *) wifi_sta_cfg->ssid, sizeof(provision_wifi_credentials.ssid) - 1);
+            provision_wifi_credentials.ssid[sizeof(provision_wifi_credentials.ssid) - 1] = '\0'; // Asegurar terminación en null
+            strncpy(provision_wifi_credentials.password, (const char *) wifi_sta_cfg->password, sizeof(provision_wifi_credentials.password) - 1);
+            provision_wifi_credentials.password[sizeof(provision_wifi_credentials.password) - 1] = '\0'; // Asegurar terminación en null
             break;
         }
         case WIFI_PROV_CRED_FAIL: {
@@ -93,7 +94,7 @@ void provision_event_handler(void* arg, esp_event_base_t event_base,
         }
         case WIFI_PROV_CRED_SUCCESS:
             ESP_LOGI(TAG, "Provisioning successful");
-            xEventGroupSetBits(provision_event_group, PROVISION_DONE_EVENT);
+            xSemaphoreGive(is_provisioned);
 #ifdef CONFIG_EXAMPLE_RESET_PROV_MGR_ON_FAILURE
             retries = 0;
 #endif
@@ -135,7 +136,7 @@ esp_err_t thingsboard_url_prov_data_handler(uint32_t session_id, const uint8_t *
     if (inbuf) {
         ESP_LOGI(TAG, "Received data: %.*s", inlen, (char *)inbuf);
         //snprintf(thingsboard_url, sizeof(thingsboard_url), "%.*s", (int)inlen, (char *)inbuf);
-        strcpy(provision_thingsboard_url, (char *)inbuf);
+        strcpy(provision_thingsboard_cfg.address.uri, (char *)inbuf);
     }
     char response[] = "SUCCESS";
     *outbuf = (uint8_t *)strdup(response);
@@ -178,11 +179,17 @@ void wifi_prov_print_qr(const char *name, const char *username, const char *pop,
     ESP_LOGI(TAG, "If QR code is not visible, copy paste the below URL in a browser.\n%s?data=%s", QRCODE_BASE_URL, payload);
 }
 
-esp_err_t softAP_provision_init(EventGroupHandle_t event_group, char *main_thingsboard_url, wifi_credentials_t *main_wifi_credentials ){
+thingsboard_cfg_t get_thingsboard_cfg(){
+    return provision_thingsboard_cfg;
+}
 
-    provision_event_group = event_group;
-    provision_wifi_credentials = main_wifi_credentials;
-    provision_thingsboard_url = main_thingsboard_url;
+wifi_credentials_t get_wifi_credentials(){
+    return provision_wifi_credentials;
+}
+
+esp_err_t softAP_provision_init(thingsboard_cfg_t *thingsboard_cfg, wifi_credentials_t *wifi_credentials ){
+    
+    is_provisioned = xSemaphoreCreateBinary();
     
     /* Initialize TCP/IP */
     ESP_RETURN_ON_ERROR(esp_netif_init(), TAG, "Error iniciando TCP/IP");
@@ -197,7 +204,7 @@ esp_err_t softAP_provision_init(EventGroupHandle_t event_group, char *main_thing
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_RETURN_ON_ERROR(esp_wifi_init(&cfg), TAG, "Error iniciando la configuracion Wifi");
 
-    if(strlen(provision_wifi_credentials->password) == 0 || strlen(provision_wifi_credentials->ssid) == 0 || strlen(provision_thingsboard_url) == 0){
+    if(thingsboard_cfg == NULL || wifi_credentials == NULL){ 
         /* Configuration for the provisioning manager */
         wifi_prov_mgr_config_t config = {
             .scheme = wifi_prov_scheme_softap,
@@ -290,6 +297,10 @@ esp_err_t softAP_provision_init(EventGroupHandle_t event_group, char *main_thing
         wifi_prov_mgr_endpoint_register("thingsboard-url", thingsboard_url_prov_data_handler, NULL);
 
         wifi_prov_print_qr(service_name, username, pop, PROV_TRANSPORT_SOFTAP);
+
+        if(xSemaphoreTake(is_provisioned, portMAX_DELAY) != pdTRUE) {
+            ESP_LOGE(TAG, "Provisioning failed");
+        }
     }
     else{
         wifi_config_t wifi_config = {
@@ -297,14 +308,13 @@ esp_err_t softAP_provision_init(EventGroupHandle_t event_group, char *main_thing
                     .threshold.authmode = WIFI_AUTH_WPA2_PSK,
                 },
         };
-        memcpy(wifi_config.sta.ssid, provision_wifi_credentials->ssid, strlen(provision_wifi_credentials->ssid));
-        memcpy(wifi_config.sta.password, provision_wifi_credentials->password, strlen(provision_wifi_credentials->password));
+        memcpy(wifi_config.sta.ssid, wifi_credentials->ssid, strlen(wifi_credentials->ssid));
+        memcpy(wifi_config.sta.password, wifi_credentials->password, strlen(wifi_credentials->password));
         ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
-        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
+        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
         ESP_ERROR_CHECK(esp_wifi_start());
 
         ESP_LOGI(TAG, "wifi_init_sta finished.");
-        xEventGroupSetBits(provision_event_group, PROVISION_DONE_EVENT);
     }
 
     return ESP_OK;

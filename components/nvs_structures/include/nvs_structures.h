@@ -33,7 +33,7 @@ esp_err_t storage_get_wifi_credentials(wifi_credentials_t *wifi_credentiasl);
 
 esp_err_t nvs_init();
 esp_err_t nvs_get_sgp30_timed_measurement(sgp30_timed_measurement_t *sgp30_timed_measurement_handle);
-esp_err_t nvs_get_thingboard_cfg(thingsboard_cfg_t *thingsboard_cfg);
+esp_err_t nvs_get_thingsboard_cfg(thingsboard_cfg_t *thingsboard_cfg);
 esp_err_t nvs_get_wifi_credentials(wifi_credentials_t *wifi_credentiasl);
 
 esp_err_t nvs_init();
