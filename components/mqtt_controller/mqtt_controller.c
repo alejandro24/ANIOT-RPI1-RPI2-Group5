@@ -256,66 +256,65 @@ esp_err_t mqtt_set_access_token(char* token, size_t token_len) {
     }
 }
 
-esp_err_t mqtt_provision(thingsboard_url_t thingsboard_url)
-{
-    esp_mqtt_client_config_t mqtt_cfg = {
-        .broker.address.uri = thingsboard_url,
-        .broker.address.port = 8883,
-        //.broker.verification.certificate = (const char *)server_pem_start,
-        //.credentials.authentication.certificate = (const char *) deviceKey_pem_start,
-        //.credentials.authentication.key = (const char *) chain_pem_start,
-    };
-
-    is_provisioned = xSemaphoreCreateBinary();
-
-    client = esp_mqtt_client_init(&mqtt_cfg);
-    if (client == NULL) {
-        return ESP_FAIL;
-    }
-
-    ESP_RETURN_ON_ERROR(
-        esp_mqtt_client_register_event(
-            client,
-            ESP_EVENT_ANY_ID,
-            mqtt_event_handler,
-            NULL
-        ),
-        TAG,
-        "could not register handler"
-    );
-
-    ESP_RETURN_ON_ERROR(
-        esp_mqtt_client_start(client),
-        TAG,
-        "could not start provision client"
-    );
-
-    if(xSemaphoreTake(is_provisioned, MAX_PROVISIONING_WAIT) != pdTRUE) {
-        esp_mqtt_client_stop(client);
-        esp_mqtt_client_destroy(client);
-        return ESP_FAIL;
-    }
-
-    esp_mqtt_client_stop(client);
-    esp_mqtt_client_destroy(client);
-    return ESP_OK;
-}
+//esp_err_t mqtt_provision(thingsboard_url_t thingsboard_url)
+//{
+//    esp_mqtt_client_config_t mqtt_cfg = {
+//        .broker.address.uri = thingsboard_url,
+//        .broker.address.port = 8883,
+//        //.broker.verification.certificate = (const char *)server_pem_start,
+//        //.credentials.authentication.certificate = (const char *) deviceKey_pem_start,
+//        //.credentials.authentication.key = (const char *) chain_pem_start,
+//    };
+//
+//    is_provisioned = xSemaphoreCreateBinary();
+//
+//    client = esp_mqtt_client_init(&mqtt_cfg);
+//    if (client == NULL) {
+//        return ESP_FAIL;
+//    }
+//
+//    ESP_RETURN_ON_ERROR(
+//        esp_mqtt_client_register_event(
+//            client,
+//            ESP_EVENT_ANY_ID,
+//            mqtt_event_handler,
+//            NULL
+//        ),
+//        TAG,
+//        "could not register handler"
+//    );
+//
+//    ESP_RETURN_ON_ERROR(
+//        esp_mqtt_client_start(client),
+//        TAG,
+//        "could not start provision client"
+//    );
+//
+//    if(xSemaphoreTake(is_provisioned, MAX_PROVISIONING_WAIT) != pdTRUE) {
+//        esp_mqtt_client_stop(client);
+//        esp_mqtt_client_destroy(client);
+//        return ESP_FAIL;
+//    }
+//
+//    esp_mqtt_client_stop(client);
+//    esp_mqtt_client_destroy(client);
+//    return ESP_OK;
+//}
 
 esp_err_t mqtt_init(
     esp_event_loop_handle_t loop,
-    thingsboard_url_t thingsboard_url,
-    char* server_pem,
-    char* devicekey_pem,
-    char* chain_pem
+    thingsboard_cfg_t *cfg
 ) {
     event_loop = loop;
 
     esp_mqtt_client_config_t mqtt_cfg = {
-        .broker.address.uri = thingsboard_url,
-        .broker.address.port = 8883,
-        .broker.verification.certificate = server_pem,
-        .credentials.authentication.certificate = devicekey_pem,
-        .credentials.authentication.key = chain_pem,
+        .broker.address.uri = cfg->address.uri,
+        .broker.address.port = cfg->address.port,
+        .broker.verification.certificate = cfg->verification.certificate,
+        .credentials.authentication.certificate =
+            cfg->credentials.authentication.certificate,
+        .credentials.authentication.key =
+            cfg->credentials.authentication.key,
     };
 
     client = esp_mqtt_client_init(&mqtt_cfg);
@@ -346,6 +345,7 @@ esp_err_t mqtt_init(
 
     return ESP_OK;
 }
+
 
 esp_err_t mqtt_publish(
     char* data,

@@ -9,6 +9,7 @@
 #include "freertos/idf_additions.h"
 #include "freertos/projdefs.h"
 #include "portmacro.h"
+#include "thingsboard_types.h"
 #include "sgp30.h"
 #include "nvs_structures.h"
 #include "softAP_provision.h"
@@ -90,7 +91,8 @@ static void event_handler_got_ip(void* arg, esp_event_base_t event_base,
 {
     ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
     ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
-    mqtt_init(imc_event_loop_handle, thingsboard_cfg);
+
+    mqtt_init(imc_event_loop_handle, &thingsboard_cfg);
 }
 
 static void sgp30_on_new_measurement(
@@ -258,7 +260,7 @@ void app_main(void) {
     }
     // Esto debería de iniciarse al tener un valor del intervalo, por MQTT (atributo compartido creo)
     // Se inicia solo al mandar un evento SGP30_EVENT_NEW_INTERVAL
-    mqtt_init(imc_event_loop_handle, thingsboard_cfg);
+    mqtt_init(imc_event_loop_handle, &thingsboard_cfg);
 
     sgp30_start_measuring(1000000);
 
