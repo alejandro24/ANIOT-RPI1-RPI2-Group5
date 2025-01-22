@@ -28,8 +28,8 @@ ESP_EVENT_DEFINE_BASE(SGP30_EVENT);
 static char* TAG = "SGP30";
 static esp_event_loop_handle_t sgp30_event_loop;
 static i2c_master_dev_handle_t sgp30_dev_handle;
-static esp_timer_handle_t sgp30_update_baseline_timer_handle;
-static esp_timer_handle_t sgp30_acquire_baseline_timer_handle;
+static uint32_t sgp30_req_measurement_interval;
+static esp_timer_handle_t sgp30_req_measurement_timer_handle;
 static sgp30_state_t sgp30_state;
 static uint32_t sgp30_elapsed_secs;
 static bool sgp30_has_baseline;
@@ -41,23 +41,34 @@ static SemaphoreHandle_t sgp30_measurement_requested;
 static SemaphoreHandle_t device_in_use_mutex;
 static uint16_t id[3];
 
-esp_err_t sgp30_request_measurement() {
+static void sgp30_request_measurement_callback() {
     ESP_LOGI(TAG, "Requested measurement");
     xSemaphoreGive(sgp30_measurement_requested);
-    return ESP_OK;
 }
 
-void sgp30_on_sec_callback(void *args) {
+static void sgp30_on_sec_callback(void *args) {
     xTaskNotifyGive(sgp30_operation_task_handle);
 }
 
-void sgp30_operation_task(void *args) {
+static esp_err_t sgp30_start()
+{
+    ESP_RETURN_ON_ERROR(
+        esp_timer_start_periodic(
+            sgp30_measurement_timer_handle,
+            SGP30_MEASURING_INTERVAL
+        ),
+        TAG, "Could not start measurement_timer"
+    );
+    return ESP_OK;
+}
+
+static void sgp30_operation_task(void *args) {
     sgp30_measurement_t *baseline_handle = ((sgp30_measurement_t*) args);
     sgp30_measurement_t last_measurement;
     sgp30_measurement_log_t measurement_log;
     sgp30_measurement_t baseline;
     sgp30_state = SGP30_STATE_UNINITIAZED;
-    ESP_ERROR_CHECK(sgp30_start_measuring());
+    ESP_ERROR_CHECK(sgp30_start());
     while(true) {
         // We wait for a signal from the timer or 1 sec as fallback
         ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(10000));
@@ -280,6 +291,13 @@ esp_err_t sgp30_init(
     };
 
     ESP_ERROR_CHECK(esp_timer_create(&measurement_timer_args, &sgp30_measurement_timer_handle));
+    // Set up a timer to send data
+    esp_timer_create_args_t sgp30_req_measurement_timer_args = {
+        .callback = sgp30_request_measurement_callback,
+        .name = "request_measurement"
+    };
+
+    esp_timer_create(&sgp30_req_measurement_timer_args, &sgp30_req_measurement_timer_handle);
 
     xTaskCreate(
         sgp30_operation_task,
@@ -334,16 +352,18 @@ esp_err_t sgp30_device_delete(i2c_master_dev_handle_t dev_handle)
     return i2c_master_bus_rm_device(dev_handle);
 }
 
-esp_err_t sgp30_start_measuring()
+
+esp_err_t sgp30_start_measuring(uint64_t us)
 {
-    ESP_RETURN_ON_ERROR(
-        esp_timer_start_periodic(
-            sgp30_measurement_timer_handle,
-            SGP30_MEASURING_INTERVAL
-        ),
-        TAG, "Could not start measurement_timer"
-    );
-    return ESP_OK;
+    return esp_timer_start_periodic(sgp30_req_measurement_timer_handle, us);
+}
+esp_err_t sgp30_restart_measuring(uint64_t new_measurement_interval)
+{
+    if (esp_timer_is_active(sgp30_req_measurement_timer_handle)) {
+        return esp_timer_restart(sgp30_req_measurement_timer_handle, new_measurement_interval);
+    } else {
+        return esp_timer_start_periodic(sgp30_req_measurement_timer_handle, new_measurement_interval);
+    }
 }
 
 esp_err_t sgp30_init_air_quality(i2c_master_dev_handle_t dev_handle)

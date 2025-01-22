@@ -8,21 +8,21 @@
 #define storage_get(X)                                            \
     _Generic( (X),                                                \
         sgp30_timed_measurement_t*  : storage_get_sgp30_timed_measurement,        \
-        thingsboard_cfg_t : storage_get_thingboard_address, \
+        thingsboard_cfg_t* : storage_get_thingboard_cfg, \
         wifi_credentials_t* : storage_get_wifi_credentials   \
     )( (X) )
 
 #define nvs_get(X)                                            \
     _Generic( (X),                                                \
         sgp30_timed_measurement_t*  : nvs_get_sgp30_timed_measurement,        \
-        thingsboard_cfg_t : nvs_get_thingboard_cfg, \
+        thingsboard_cfg_t* : nvs_get_thingboard_cfg, \
         wifi_credentials_t* : nvs_get_wifi_credentials \
     )( (X) )
 
 #define nvs_set(X)                                            \
     _Generic( (X),                                                \
         sgp30_timed_measurement_t*  : nvs_set_sgp30_timed_measurement,        \
-        thingsboard_cgf_t : nvs_set_thingboard_cfg, \
+        thingsboard_cgf_t* : nvs_set_thingboard_cfg, \
         wifi_credentials_t* : nvs_set_wifi_credentials \
     )( (X) )
 

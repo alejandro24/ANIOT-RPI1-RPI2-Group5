@@ -94,7 +94,7 @@ esp_err_t sgp30_device_create(
     const uint16_t dev_addr,
     const uint32_t dev_speed);
 
-esp_err_t sgp30_request_measurement();
+esp_err_t sgp30_restart_measuring(uint64_t new_measurement_interval_us);
 /**
  * @brief Deletes the SGP30 device instance.
  *
@@ -120,7 +120,7 @@ esp_err_t sgp30_init(
 /**
  * UNDOCUMENTED
  */
-esp_err_t sgp30_start_measuring();
+esp_err_t sgp30_start_measuring(uint64_t us);
 /**
  * @brief Initiates the measurement capabilities of the SGP30 device.
  *

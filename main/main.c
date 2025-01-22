@@ -38,14 +38,12 @@ static char* TAG = "MAIN";
 // sgp30 required structures
 i2c_master_bus_handle_t i2c_master_bus_handle;
 esp_event_loop_handle_t imc_event_loop_handle;
-uint32_t sgp30_req_measurement_interval;
-esp_timer_handle_t sgp30_req_measurement_timer_handle;
 SemaphoreHandle_t sgp30_req_measurement;
 sgp30_measurement_log_t sgp30_log;
 uint16_t send_time = 30;
 static EventGroupHandle_t provision_event_group;
-thingsboard_url_t thingsboard_url;
-wifi_credentials_t *wifi_credentials;
+thingsboard_cfg_t thingsboard_cfg;
+wifi_credentials_t wifi_credentials;
 
 static void new_send_time_event_handler(
     void * handler_args,
@@ -92,10 +90,7 @@ static void event_handler_got_ip(void* arg, esp_event_base_t event_base,
 {
     ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
     ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
-    mqtt_init(imc_event_loop_handle, thingsboard_url);
-}
-static void sgp30_req_measurement_callback(void *args) {
-    sgp30_request_measurement();
+    mqtt_init(imc_event_loop_handle, thingsboard_cfg);
 }
 
 static void sgp30_on_new_measurement(
@@ -123,11 +118,7 @@ static void sgp30_on_new_interval(
     void *event_data
 ) {
     uint32_t new_measurement_interval = *((uint32_t*) event_data);
-    if (esp_timer_is_active(sgp30_req_measurement_timer_handle)) {
-        esp_timer_restart(sgp30_req_measurement_timer_handle, new_measurement_interval);
-    } else {
-        esp_timer_start_periodic(sgp30_req_measurement_timer_handle, new_measurement_interval);
-    }
+    sgp30_restart_measuring(new_measurement_interval);
 }
 
 static void sgp30_on_new_baseline(
@@ -242,20 +233,19 @@ void app_main(void) {
     );
 
     //TODO: Intentar sacar de nvs los datos de provisionamiento para pasarlos a el init de provisionamiento
-    wifi_credentials = (wifi_credentials_t*)(sizeof(wifi_credentials_t));
+    esp_err_t got_thingboard_cfg = storage_get(&thingsboard_cfg);
+    esp_err_t got_wifi_credentials = storage_get(&wifi_credentials);
+    if( got_thingboard_cfg != got_wifi_credentials )
+    {
+        ESP_LOGE(TAG, "Provisioning State Corrupt");
+    }
     //Start the init of the provision component, we actively wait it to finish the provision to continue
     provision_event_group = xEventGroupCreate();
-    ESP_ERROR_CHECK(softAP_provision_init(provision_event_group, thingsboard_url, wifi_credentials));
+    ESP_ERROR_CHECK(softAP_provision_init(provision_event_group, thingsboard_cfg, wifi_credentials));
 
     /* Wait for Provision*/
     xEventGroupWaitBits(provision_event_group, PROVISION_DONE_EVENT, true, true, portMAX_DELAY);
 
-    esp_timer_create_args_t sgp30_req_measurement_timer_args = {
-        .callback = sgp30_req_measurement_callback,
-        .name = "request_measurement"
-    };
-
-    esp_timer_create(&sgp30_req_measurement_timer_args, &sgp30_req_measurement_timer_handle);
     // At this point a valid time is required
     // We start the sensor
     sgp30_timed_measurement_t maybe_baseline;
@@ -268,8 +258,9 @@ void app_main(void) {
     }
     // Esto debería de iniciarse al tener un valor del intervalo, por MQTT (atributo compartido creo)
     // Se inicia solo al mandar un evento SGP30_EVENT_NEW_INTERVAL
-    esp_timer_start_periodic(sgp30_req_measurement_timer_handle, 10000000);
-    mqtt_init(imc_event_loop_handle, thingsboard_url);
+    mqtt_init(imc_event_loop_handle, thingsboard_cfg);
+
+    sgp30_start_measuring(1000000);
 
        /* WIFI Y SNTP
      // Initialize NVS
