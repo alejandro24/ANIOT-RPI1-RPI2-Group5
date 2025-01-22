@@ -33,13 +33,6 @@
 #define PROVISION_REQUEST_TOPIC "/provision/request"
 #define PROVISION_RESPONSE_TOPIC "/provision/response"
 
-extern const uint8_t server_pem_start[] asm("_binary_server_pem_start");
-extern const uint8_t server_pem_end[] asm("_binary_server_pem_end");
-extern const uint8_t chain_pem_start[] asm("_binary_chain_pem_start");
-extern const uint8_t chain_pem_end[] asm("_binary_chain_pem_end");
-extern const uint8_t deviceKey_pem_start[] asm("_binary_deviceKey_pem_start");
-extern const uint8_t deviceKey_pem_end[] asm("_binary_deviceKey_pem_end");
-
 static const char *TAG = "mqtt_thingsboard";
 esp_event_loop_handle_t event_loop;
 esp_mqtt_client_handle_t client;
@@ -268,9 +261,9 @@ esp_err_t mqtt_provision(thingsboard_url_t thingsboard_url)
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker.address.uri = thingsboard_url,
         .broker.address.port = 8883,
-        .broker.verification.certificate = (const char *)server_pem_start,
-        .credentials.authentication.certificate = (const char *) deviceKey_pem_start,
-        .credentials.authentication.key = (const char *) chain_pem_start,
+        //.broker.verification.certificate = (const char *)server_pem_start,
+        //.credentials.authentication.certificate = (const char *) deviceKey_pem_start,
+        //.credentials.authentication.key = (const char *) chain_pem_start,
     };
 
     is_provisioned = xSemaphoreCreateBinary();
@@ -310,16 +303,19 @@ esp_err_t mqtt_provision(thingsboard_url_t thingsboard_url)
 
 esp_err_t mqtt_init(
     esp_event_loop_handle_t loop,
-    thingsboard_url_t thingsboard_url
+    thingsboard_url_t thingsboard_url,
+    char* server_pem,
+    char* devicekey_pem,
+    char* chain_pem
 ) {
     event_loop = loop;
 
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker.address.uri = thingsboard_url,
         .broker.address.port = 8883,
-        .broker.verification.certificate = (const char *)server_pem_start,
-        .credentials.authentication.certificate = (const char *) deviceKey_pem_start,
-        .credentials.authentication.key = (const char *) chain_pem_start,
+        .broker.verification.certificate = server_pem,
+        .credentials.authentication.certificate = devicekey_pem,
+        .credentials.authentication.key = chain_pem,
     };
 
     client = esp_mqtt_client_init(&mqtt_cfg);

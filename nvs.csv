@@ -1,0 +1,7 @@
+key,type,encoding,value
+certs,namespace,,
+ca_cert,file,string,certs/server.pem
+priv_key,file,string,certs/deviceKey.pem
+dev_cert,file,string,certs/deviceCert.pem
+int_cert,file,string,certs/intermediateCert.pem
+root_cert,file,string,certs/rootCert.pem
