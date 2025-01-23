@@ -1,255 +1,413 @@
 #include "nvs_structures.h"
+#include "esp_check.h"
+#include "esp_err.h"
 #include "mqtt_controller.h"
 #include "nvs.h"
-#include "sgp30.h"
-#include "esp_err.h"
-#include "esp_check.h"
 #include "nvs_flash.h"
+#include "sgp30.h"
 #include "softAP_provision.h"
 #include "thingsboard_types.h"
 #include <stdlib.h>
 
-#define SGP30_STORAGE_NAMESPACE "sgp30"
-#define SGP30_NVS_BASELINE_KEY "baseline"
-#define SOFTAP_NVS_WIFI_CREDENTIALS_KEY "wifi_credentials"
+#define NVS_SGP30_STORAGE_NAMESPACE    "sgp30"
+#define NVS_SGP30_BASELINE_KEY         "baseline"
+#define NVS_WIFI_CREDENTIALS_NAMESPACE "wifi_cred"
+#define NVS_WIFI_CREDENTIALS_SSID_KEY  "ssid"
+#define NVS_WIFI_CREDENTIALS_PASS_KEY  "pass"
+#define NVS_THINGSBOARD_NAMESPACE      "thingsboard"
+#define NVS_THINGSBOARD_URI_KEY        "uri"
+#define NVS_THINGSBOARD_PORT_KEY       "port"
+#define NVS_THINGSBOARD_CACERT_KEY     "ca_cert"
+#define NVS_THINGSBOARD_DEVCERT_KEY    "dev_cert"
+#define NVS_THINGSBOARD_CHAINCERT_KEY  "chain_cert"
 
 #define TAG "NVS"
 static nvs_handle_t storage_handle;
 
-esp_err_t storage_init() {
-    return nvs_open("nvs", NVS_READWRITE, &storage_handle);
+esp_err_t storage_init ()
+{
+    return nvs_open ("nvs", NVS_READWRITE, &storage_handle);
 }
 
-esp_err_t storage_get_sgp30_timed_measurement(
+esp_err_t storage_get_sgp30_timed_measurement (
     sgp30_timed_measurement_t *sgp30_log_entry_handle
-) {
-    return nvs_get_sgp30_timed_measurement(sgp30_log_entry_handle);
+)
+{
+    return nvs_get_sgp30_timed_measurement (sgp30_log_entry_handle);
 }
-esp_err_t storage_get_wifi_credentials(
+esp_err_t storage_get_wifi_credentials (
     wifi_credentials_t *sgp30_log_entry_handle
-) {
-    return nvs_get_wifi_credentials(sgp30_log_entry_handle);
+)
+{
+    return nvs_get_wifi_credentials (sgp30_log_entry_handle);
 }
 
-esp_err_t nvs_get_wifi_credentials(
+esp_err_t nvs_get_wifi_credentials (
     wifi_credentials_t *wifi_credentials
-) {
-    size_t wifi_credentials_len;
-    char* key = SOFTAP_NVS_WIFI_CREDENTIALS_KEY;
-    ESP_RETURN_ON_ERROR(
-        nvs_get_blob(
-            storage_handle,
-            key,
-            NULL,
-            &wifi_credentials_len
-        ),
-        TAG, "Could not get baseline len from NVS"
-    );
-    ESP_RETURN_ON_ERROR(
-        nvs_get_blob(
-            storage_handle,
-            key,
-            wifi_credentials,
-            &wifi_credentials_len
-        ),
-        TAG, "Could not get baseline from NVS"
-    );
-    return ESP_OK;
-}
-
-esp_err_t nvs_get_sgp30_timed_measurement(
-    sgp30_timed_measurement_t *sgp30_log_entry_handle
-) {
-    size_t baseline_len;
-    char* key = SGP30_NVS_BASELINE_KEY;
-    ESP_RETURN_ON_ERROR(
-        nvs_get_blob(
-            storage_handle,
-            key,
-            NULL,
-            &baseline_len
-        ),
-        TAG, "Could not get baseline len from NVS"
-    );
-    ESP_RETURN_ON_ERROR(
-        nvs_get_blob(
-            storage_handle,
-            key,
-            sgp30_log_entry_handle,
-            &baseline_len
-        ),
-        TAG, "Could not get baseline from NVS"
-    );
-    return ESP_OK;
-}
-
-esp_err_t nvs_get_thingsboard_url(
-    thingsboard_url_t thingsboard_url_handle
-) {
-    size_t thingsboard_url_len;
-    char* key = "thingsboard_url";
-    ESP_RETURN_ON_ERROR(
-        nvs_get_blob(
-            storage_handle,
-            key,
-            NULL,
-            &thingsboard_url_len
-        ),
-        TAG, "Could not get baseline len from NVS"
-    );
-    ESP_RETURN_ON_ERROR(
-        nvs_get_blob(
-            storage_handle,
-            key,
-            thingsboard_url_handle,
-            &thingsboard_url_len
-        ),
-        TAG, "Could not get baseline from NVS"
-    );
-    return ESP_OK;
-}
-
-esp_err_t nvs_set_thingboard_cfg(const thingsboard_cfg_t *thingsboard_cfg) {
-    // Set address
-    ESP_RETURN_ON_ERROR(
-        nvs_set_str(
-            storage_handle,
-            "tb_uri",
-            thingsboard_cfg->address.uri
-        ),
-        TAG,
-        "Could not store thingsboard url"
-    );
-    ESP_RETURN_ON_ERROR(
-        nvs_set_u8(
-            storage_handle,
-            "tb_port",
-            thingsboard_cfg->address.port
-        ),
-        TAG,
-        "Could not store thingsboard port"
-    );
-
-    // Set verification
-    ESP_RETURN_ON_ERROR(
-        nvs_set_str(
-            storage_handle,
-            "tb_veri_cert",
-            thingsboard_cfg->verification.certificate
-        ),
-        TAG,
-        "Could not store thingsboard verification certificate"
-    );
-
-    // Set credentials
-    ESP_RETURN_ON_ERROR(
-        nvs_set_str(
-            storage_handle,
-            "tb_c_a_cert",
-            thingsboard_cfg->credentials.authentication.certificate
-        ),
-        TAG,
-        "Could not store thingsboard credentials authentication certificate"
-    );
-    ESP_RETURN_ON_ERROR(
-        nvs_set_str(
-            storage_handle,
-            "tb_c_a_key",
-            thingsboard_cfg->credentials.authentication.key
-        ),
-        TAG,
-        "Could not store thingsboard credentials authentication key"
-    );
-    return ESP_OK;
-}
-
-esp_err_t storage_get_thingboard_cfg(thingsboard_cfg_t *thingsboard_cfg)
+)
 {
-    return nvs_get_thingboard_cfg(thingsboard_cfg);
-}
+    nvs_handle_t storage_handle;
+    esp_err_t err;
 
-esp_err_t nvs_get_thingsboard_cfg(thingsboard_cfg_t *cfg)
-{
-    //Get address
-    size_t uri_len;
-    if (nvs_get_str(storage_handle, "tb_uri", NULL, &uri_len) != ESP_OK)
+    // Open handle
+    if (nvs_open (
+            NVS_WIFI_CREDENTIALS_NAMESPACE,
+            NVS_READONLY,
+            &storage_handle
+        )
+        != ESP_OK)
     {
-        ESP_LOGE(TAG, "Could not get thingsboard uri length");
+        ESP_LOGE (TAG, "Could not open wifi credentials namespace");
         return ESP_FAIL;
     }
-    char* uri = malloc(uri_len);
-    if (nvs_get_str(storage_handle, "tb_uri", uri, &uri_len) != ESP_OK)
+
+    // Get SSID
+    size_t wifi_credentials_ssid_len;
+    err = nvs_get_str (
+        storage_handle,
+        NVS_WIFI_CREDENTIALS_SSID_KEY,
+        NULL,
+        &wifi_credentials_ssid_len
+    );
+    if (err != ESP_OK)
     {
-        free(uri);
-        ESP_LOGE(TAG, "Could not get thingsboard uri");
+        nvs_close (storage_handle);
+        ESP_LOGE (TAG, "Could not get wifi credentials ssid len from NVS");
+        return err;
+    }
+    err = nvs_get_str (
+        storage_handle,
+        NVS_WIFI_CREDENTIALS_SSID_KEY,
+        wifi_credentials->ssid,
+        &wifi_credentials_ssid_len
+    );
+    if (err != ESP_OK)
+    {
+        nvs_close (storage_handle);
+        ESP_LOGE (TAG, "Could not get wifi credentials ssid from NVS");
+        return err;
+    }
+
+    // Get pass
+    size_t wifi_credentials_pass_len;
+    err = nvs_get_str (
+        storage_handle,
+        NVS_WIFI_CREDENTIALS_PASS_KEY,
+        NULL,
+        &wifi_credentials_pass_len
+    );
+    if (err != ESP_OK)
+    {
+        nvs_close (storage_handle);
+        ESP_LOGE (TAG, "Could not get wifi credentials pass len from NVS");
+        return err;
+    }
+    err = nvs_get_str (
+        storage_handle,
+        NVS_WIFI_CREDENTIALS_PASS_KEY,
+        wifi_credentials->password,
+        &wifi_credentials_pass_len
+    );
+    if (err != ESP_OK)
+    {
+        nvs_close (storage_handle);
+        ESP_LOGE (TAG, "Could not get wifi credentials pass from NVS");
+        return err;
+    }
+    // Close handle
+    nvs_close(storage_handle);
+
+    return ESP_OK;
+}
+
+esp_err_t nvs_get_sgp30_timed_measurement (
+    sgp30_timed_measurement_t *sgp30_timed_measurement_handle
+)
+{
+    nvs_handle_t storage_handle;
+    esp_err_t err;
+    err = nvs_open(NVS_SGP30_STORAGE_NAMESPACE, NVS_READONLY, &storage_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Could not open sgp30 namespace in NVS");
+        return err;
+    }
+    // Get
+    size_t timed_measurement_len;
+    err = nvs_get_blob (
+        storage_handle,
+        NVS_SGP30_BASELINE_KEY,
+        NULL,
+        &timed_measurement_len
+    );
+    if (err != ESP_OK)
+    {
+        nvs_close (storage_handle);
+        ESP_LOGE (TAG, "Could not get baseline len from NVS");
+        return err;
+    }
+
+    err = nvs_get_blob (
+        storage_handle,
+        NVS_SGP30_BASELINE_KEY,
+        sgp30_timed_measurement_handle,
+        &timed_measurement_len
+    );
+    if (err != ESP_OK)
+    {
+        nvs_close (storage_handle);
+        ESP_LOGE (TAG, "Could not get baseline from NVS");
+        return err;
+    }
+
+    nvs_close (storage_handle);
+    return ESP_OK;
+}
+
+esp_err_t nvs_set_thingsboard_cfg (
+    const thingsboard_cfg_t *thingsboard_cfg
+)
+{
+    nvs_handle_t storage_handle;
+    esp_err_t err;
+
+    // Open namespace
+    err = nvs_open (NVS_THINGSBOARD_NAMESPACE, NVS_READWRITE, &storage_handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE (TAG, "Could not open thingsboard namespace to write");
+        return err;
+    }
+
+    // Set address
+    err = nvs_set_str (
+        storage_handle,
+        NVS_THINGSBOARD_URI_KEY,
+        thingsboard_cfg->address.uri
+    );
+    if (err != ESP_OK)
+    {
+        nvs_close (storage_handle);
+        ESP_LOGE (TAG, "Could not store thingsboard uri");
+        return err;
+    }
+
+    err = nvs_set_u8 (
+        storage_handle,
+        NVS_THINGSBOARD_PORT_KEY,
+        thingsboard_cfg->address.port
+    );
+    if (err != ESP_OK)
+    {
+        nvs_close (storage_handle);
+        ESP_LOGE (TAG, "Could not store thingsboard port");
+        return err;
+    }
+
+    // Set verification
+    err = nvs_set_str (
+        storage_handle,
+        NVS_THINGSBOARD_CACERT_KEY,
+        thingsboard_cfg->verification.certificate
+    );
+    if (err != ESP_OK)
+    {
+        nvs_close (storage_handle);
+        ESP_LOGE (TAG, "Could not store thingsboard verification certificate");
+        return err;
+    }
+
+    // Set credentials
+    err = nvs_set_str (
+        storage_handle,
+        NVS_THINGSBOARD_DEVCERT_KEY,
+        thingsboard_cfg->credentials.authentication.certificate
+    );
+    if (err != ESP_OK)
+    {
+        nvs_close (storage_handle);
+
+        ESP_LOGE (
+            TAG,
+            "Could not store thingsboard credentials authentication "
+            "certificate"
+        );
+        return err;
+    }
+
+    err = nvs_set_str (
+        storage_handle,
+        NVS_THINGSBOARD_CHAINCERT_KEY,
+        thingsboard_cfg->credentials.authentication.key
+    );
+    if (err != ESP_OK)
+    {
+        nvs_close (storage_handle);
+        ESP_LOGE (
+            TAG,
+            "Could not store thingsboard credentials authentication key"
+        );
+        return err;
+    }
+
+    // Commit and close
+    err = nvs_commit (storage_handle);
+    if (err != ESP_OK)
+    {
+        nvs_close (storage_handle);
+        ESP_LOGE (TAG, "Could not commit changes in nvs");
+        return err;
+    }
+    nvs_close (storage_handle);
+    return ESP_OK;
+}
+
+esp_err_t storage_get_thingsboard_cfg (
+    thingsboard_cfg_t *thingsboard_cfg
+)
+{
+    return nvs_get_thingsboard_cfg (thingsboard_cfg);
+}
+
+esp_err_t nvs_get_thingsboard_cfg (
+    thingsboard_cfg_t *cfg
+)
+{
+    nvs_handle_t storage_handle;
+    if (nvs_open (NVS_THINGSBOARD_NAMESPACE, NVS_READONLY, &storage_handle)
+        != ESP_OK)
+    {
+        return ESP_FAIL;
+    }
+    // Get address
+    size_t uri_len;
+    if (nvs_get_str (storage_handle, NVS_THINGSBOARD_URI_KEY, NULL, &uri_len)
+        != ESP_OK)
+    {
+        nvs_close (storage_handle);
+        ESP_LOGE (TAG, "Could not get thingsboard uri length");
+        return ESP_FAIL;
+    }
+    char *uri = malloc (uri_len);
+    if (nvs_get_str (storage_handle, NVS_THINGSBOARD_URI_KEY, uri, &uri_len)
+        != ESP_OK)
+    {
+        nvs_close (storage_handle);
+        free (uri);
+        ESP_LOGE (TAG, "Could not get thingsboard uri");
         return ESP_FAIL;
     }
     uint8_t port;
-    if (nvs_get_u8(storage_handle, "tb_port", &port) != ESP_OK)
+    if (nvs_get_u8 (storage_handle, NVS_THINGSBOARD_PORT_KEY, &port) != ESP_OK)
     {
-        free(uri);
-        ESP_LOGE(TAG, "Could not get thingsboard port");
+        nvs_close (storage_handle);
+        free (uri);
+        ESP_LOGE (TAG, "Could not get thingsboard port");
         return ESP_FAIL;
     }
 
-    //Get verification
+    // Get verification
     size_t ca_cert_len;
-    if (nvs_get_str(storage_handle, "tb_cacert", NULL, &ca_cert_len) != ESP_OK)
+    if (nvs_get_str (
+            storage_handle,
+            NVS_THINGSBOARD_CACERT_KEY,
+            NULL,
+            &ca_cert_len
+        )
+        != ESP_OK)
     {
-        free(uri);
-        ESP_LOGE(TAG, "Could not get thingsboard ca certificate length");
+        nvs_close (storage_handle);
+        free (uri);
+        ESP_LOGE (TAG, "Could not get thingsboard ca certificate length");
         return ESP_FAIL;
     }
-    char* ca_cert = malloc(ca_cert_len);
-    if (nvs_get_str(storage_handle, "tb_cacert", ca_cert, &ca_cert_len) != ESP_OK)
+    char *ca_cert = malloc (ca_cert_len);
+    if (nvs_get_str (
+            storage_handle,
+            NVS_THINGSBOARD_CACERT_KEY,
+            ca_cert,
+            &ca_cert_len
+        )
+        != ESP_OK)
     {
-        free(uri);
-        free(ca_cert);
-        ESP_LOGE(TAG, "Could not get thingsboard ca certificate");
+        nvs_close (storage_handle);
+        free (uri);
+        free (ca_cert);
+        ESP_LOGE (TAG, "Could not get thingsboard ca certificate");
         return ESP_FAIL;
     }
-    //Get credentials
+    // Get credentials
     size_t dev_cert_len;
-    if (nvs_get_str(storage_handle, "tb_dev_cert", NULL, &dev_cert_len) != ESP_OK)
+    if (nvs_get_str (
+            storage_handle,
+            NVS_THINGSBOARD_DEVCERT_KEY,
+            NULL,
+            &dev_cert_len
+        )
+        != ESP_OK)
     {
-        free(uri);
-        free(ca_cert);
-        ESP_LOGE(TAG, "Could not get thingsboard device certificate length");
+        nvs_close (storage_handle);
+        free (uri);
+        free (ca_cert);
+        ESP_LOGE (TAG, "Could not get thingsboard device certificate length");
         return ESP_FAIL;
     }
-    char* dev_cert = malloc(dev_cert_len);
-    if (nvs_get_str(storage_handle, "tb_dev_cert", dev_cert, &dev_cert_len) != ESP_OK)
+    char *dev_cert = malloc (dev_cert_len);
+    if (nvs_get_str (
+            storage_handle,
+            NVS_THINGSBOARD_DEVCERT_KEY,
+            dev_cert,
+            &dev_cert_len
+        )
+        != ESP_OK)
     {
-        free(uri);
-        free(ca_cert);
-        free(dev_cert);
-        ESP_LOGE(TAG, "Could not get thingsboard device certificate");
+        nvs_close (storage_handle);
+        free (uri);
+        free (ca_cert);
+        free (dev_cert);
+        ESP_LOGE (TAG, "Could not get thingsboard device certificate");
         return ESP_FAIL;
     }
     size_t chain_cert_len;
-    if (nvs_get_str(storage_handle, "tb_chain_cert", NULL, &chain_cert_len) != ESP_OK)
+    if (nvs_get_str (
+            storage_handle,
+            NVS_THINGSBOARD_CHAINCERT_KEY,
+            NULL,
+            &chain_cert_len
+        )
+        != ESP_OK)
     {
-        free(uri);
-        free(ca_cert);
-        free(dev_cert);
-        ESP_LOGE(TAG, "Could not get thingsboard chain certificate length");
+        nvs_close (storage_handle);
+        free (uri);
+        free (ca_cert);
+        free (dev_cert);
+        ESP_LOGE (TAG, "Could not get thingsboard chain certificate length");
         return ESP_FAIL;
     }
-    char* chain_cert = malloc(chain_cert_len);
-    if (nvs_get_str(storage_handle, "tb_chain_cert", chain_cert, &chain_cert_len) != ESP_OK)
+    char *chain_cert = malloc (chain_cert_len);
+    if (nvs_get_str (
+            storage_handle,
+            NVS_THINGSBOARD_CHAINCERT_KEY,
+            chain_cert,
+            &chain_cert_len
+        )
+        != ESP_OK)
     {
-        free(uri);
-        free(ca_cert);
-        free(dev_cert);
-        free(chain_cert);
-        ESP_LOGE(TAG, "Could not get thingsboard chain certificate");
+        nvs_close (storage_handle);
+        free (uri);
+        free (ca_cert);
+        free (dev_cert);
+        free (chain_cert);
+        ESP_LOGE (TAG, "Could not get thingsboard chain certificate");
         return ESP_FAIL;
     }
+
+    nvs_close (storage_handle);
 
     cfg->address.uri = uri;
     cfg->address.port = port;
     cfg->verification.certificate = ca_cert;
     cfg->credentials.authentication.certificate = dev_cert;
     cfg->credentials.authentication.key = chain_cert;
+
     return ESP_OK;
 }
