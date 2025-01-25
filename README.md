@@ -115,4 +115,28 @@ Once one measurement has been completed, we will check if WiFi is connected. If 
 
 
 
+# X.509 Certificate Chain
+
+We will use a certificate chain approach for authenticating with the server.
+
+On first instance, the center domain authority, namely UCM or the Facultad de Informática has to generate a Root certificate, this root certificate and key have to be secured heavily since all authentication is based on it.
+```bash
+openssl req -x509 -newkey rsa:2048 -keyout rootKey.pem -out rootCert.pem -sha256 -nodes
+```
+We will then share this certificate with everyone as the public key, any actor interested in creating a certificate authored by us can send us a certificate signing request created by the following command.
+```bash
+openssl req -new -newkey rsa:2048 -keyout intermediateKey.pem -out intermediate.csr -sha256 -nodes
+```
+We can approve this requests by signing its public key with the following command for `num_days` days.
+```bash
+openssl x509 -req -in    device.csr           \
+                  -out   deviceCert.pem       \
+                  -CA    intermediateCert.pem \
+                  -CAkey intermediateKey.pem  \
+                  -days  <num_days>           \
+                  -sha256 -CAcreateserial
+```
+We can repeat this process to the depth desired to cover our organization structure and store the chain of public certificates that assures our identity
+
+
 

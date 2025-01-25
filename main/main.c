@@ -257,8 +257,16 @@ void app_main(void)
 
     // TODO: Intentar sacar de nvs los datos de provisionamiento para pasarlos
     // a el init de provisionamiento
+
     esp_err_t got_thingboard_cfg = storage_get(&thingsboard_cfg);
     esp_err_t got_wifi_credentials = storage_get(&wifi_credentials);
+    ESP_LOGI(
+        TAG,
+        "\tCA Cert:\n%s\n\tDevice Cert:\n%s\tChain Cert:\n%s\n",
+        thingsboard_cfg.verification.certificate,
+        thingsboard_cfg.credentials.authentication.certificate,
+        thingsboard_cfg.credentials.authentication.key
+    );
     if (got_thingboard_cfg != got_wifi_credentials)
     {
         ESP_LOGE(TAG, "Provisioning State Corrupt");
