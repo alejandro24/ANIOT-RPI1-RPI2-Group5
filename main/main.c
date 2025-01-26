@@ -12,6 +12,7 @@
 #include "nvs_structures.h"
 #include "portmacro.h"
 #include "sgp30.h"
+#include "sgp30_types.h"
 #include "sntp_sync.h" // Include the SNTP component
 #include "softAP_provision.h"
 #include "thingsboard_types.h"
@@ -52,6 +53,7 @@ static void new_send_time_event_handler(
 )
 {
     send_time = *(int *)event_data;
+    
 }
 
 // wifi handler to take actions for the different wifi events
@@ -158,7 +160,7 @@ static void sgp30_on_new_baseline(
     sgp30_timed_measurement_t new_baseline;
     new_baseline.measurement = *((sgp30_measurement_t *)event_data),
     time(&new_baseline.time);
-    // storage_set
+    ESP_ERROR_CHECK(storage_set((const sgp30_timed_measurement_t*) &new_baseline));
     ESP_LOGI(
         TAG,
         "Baseline eCO2= %d TVOC= %d at timestamp %s",

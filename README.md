@@ -138,5 +138,17 @@ openssl x509 -req -in    device.csr           \
 ```
 We can repeat this process to the depth desired to cover our organization structure and store the chain of public certificates that assures our identity
 
+[TODO]
+This line:
 
+-subj "/C=PE/ST=Lima/L=Lima/O=Acme Inc. /OU=IT Department/CN=acme.com"
+Description:
+
+Country Name (2 letter code) [AU]:PE
+State or Province Name (full name) [Some-State]:Lima
+Locality Name (eg, city) []:Lima
+Organization Name (eg, company) [Internet Widgits Pty Ltd]:Acme Inc.
+Organizational Unit Name (eg, section) []:IT Department
+Common Name (e.g. server FQDN or YOUR name) []:acme.com
+Use "/" like separator.
 

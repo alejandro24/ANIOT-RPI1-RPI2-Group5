@@ -1,3 +1,8 @@
+/**
+ * @file nvs_structures.h
+ * @brief NVS structures.
+ */
+
 #ifndef NVS_STRUCTURES_H
 #define NVS_STRUCTURES_H
 #include "nvs_flash.h"
@@ -8,47 +13,76 @@
 #define storage_get(X)                                                        \
     _Generic (                                                                \
         (X),                                                                  \
-        sgp30_timed_measurement_t* : storage_get_sgp30_timed_measurement ,    \
+        sgp30_timed_measurement_t* : storage_get_sgp30_baseline ,             \
         thingsboard_cfg_t* : storage_get_thingsboard_cfg ,                    \
         wifi_credentials_t* : storage_get_wifi_credentials                    \
     ) ( (X) )
 
-#define nvs_get(X)                                                            \
+#define storage_set(X)                                                        \
     _Generic (                                                                \
         (X),                                                                  \
-        sgp30_timed_measurement_t* : nvs_get_sgp30_timed_measurement ,        \
-        thingsboard_cfg_t* : nvs_get_thingsboard_cfg ,                        \
-        wifi_credentials_t* : nvs_get_wifi_credentials                        \
+        const sgp30_timed_measurement_t* : storage_set_sgp30_baseline ,       \
+        const thingsboard_cfg_t* : storage_set_thingsboard_cfg ,              \
+        const wifi_credentials_t* : storage_set_wifi_credentials              \
     ) ( (X) )
-
-#define nvs_set(X)                                                            \
-    _Generic (                                                                \
-        (X),                                                                  \
-        sgp30_timed_measurement_t* : nvs_set_sgp30_timed_measurement ,        \
-        thingsboard_cgf_t* : nvs_set_thingsboard_cfg ,                        \
-        wifi_credentials_t* : nvs_set_wifi_credentials                        \
-    ) ( (X) )
-
-esp_err_t storage_init ();
-esp_err_t storage_get_sgp30_timed_measurement (
-    sgp30_timed_measurement_t *sgp30_timed_measurement_handle
+/**
+ * @brief Initialize the storage.
+ * @return
+ * - ESP_OK: Success
+ * - some other error code: Failure
+ */
+esp_err_t storage_init();
+/**
+ * @brief Get the sgp30 baseline from the storage.
+ * @param baseline Pointer to the sgp30 baseline.
+ * @return
+ * - ESP_OK: Success
+ * - some other error code: Failure
+ */
+esp_err_t storage_get_sgp30_baseline (
+    sgp30_timed_measurement_t *baseline
 );
+
+/**
+ * @brief Set the sgp30 baseline in the storage.
+ * @param baseline Pointer to the sgp30 baseline.
+ * @return
+ * - ESP_OK: Success
+ * - some other error code: Failure
+ */
+esp_err_t storage_set_sgp30_baseline(
+    const sgp30_timed_measurement_t *baseline
+);
+/**
+ * @brief Get the thingsboard configuration from the storage.
+ * @param thingsboard_cfg Pointer to the thingsboard configuration.
+ * @return
+ * - ESP_OK: Success
+ * - some other error code: Failure
+ */
 esp_err_t storage_get_thingsboard_cfg (thingsboard_cfg_t *thingsboard_cfg);
+/**
+* @brief Set the thingsboard configuration in the storage.
+* @param thingsboard_cfg Pointer to the thingsboard configuration.
+* @return
+* - ESP_OK: Success
+* - some other error code: Failure
+*/
+esp_err_t storage_set_thingsboard_cfg (const thingsboard_cfg_t *thingsboard_cfg);
+/**
+ * @brief Get the wifi credentials from the storage.
+ * @param wifi_credentials Pointer to the wifi credentials.
+ * @return
+ * - ESP_OK: Success
+ * - some other error code: Failure
+ */
 esp_err_t storage_get_wifi_credentials (wifi_credentials_t *wifi_credentiasl);
-
-esp_err_t nvs_init ();
-esp_err_t nvs_get_sgp30_timed_measurement (
-    sgp30_timed_measurement_t *sgp30_timed_measurement_handle
-);
-esp_err_t nvs_get_thingsboard_cfg (thingsboard_cfg_t *thingsboard_cfg);
-esp_err_t nvs_get_wifi_credentials (wifi_credentials_t *wifi_credentiasl);
-
-esp_err_t nvs_init ();
-esp_err_t nvs_set_sgp30_timed_measurement (
-    const sgp30_timed_measurement_t *sgp30_timed_measurement_handle
-);
-esp_err_t nvs_set_thingsboard_cfg (const thingsboard_cfg_t *thingsboard_address
-);
-esp_err_t nvs_set_wifi_credentials (const wifi_credentials_t *wifi_credentiasl
-);
+/**
+ * @brief Set the wifi credentials in the storage.
+ * @param wifi_credentials Pointer to the wifi credentials.
+ * @return
+ * - ESP_OK: Success
+ * - some other error code: Failure
+ */
+esp_err_t storage_set_wifi_credentials (const wifi_credentials_t *wifi_credentiasl);
 #endif // !NVS_STRUCTURES_H

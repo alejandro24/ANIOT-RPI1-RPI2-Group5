@@ -26,340 +26,7 @@
 #define TAG "NVS"
 static nvs_handle_t storage_handle;
 
-esp_err_t storage_init()
-{
-    return nvs_open("nvs", NVS_READWRITE, &storage_handle);
-}
-
-esp_err_t storage_get_sgp30_timed_measurement(
-    sgp30_timed_measurement_t *sgp30_log_entry_handle
-)
-{
-    return nvs_get_sgp30_timed_measurement(sgp30_log_entry_handle);
-}
-esp_err_t storage_get_wifi_credentials(
-    wifi_credentials_t *sgp30_log_entry_handle
-)
-{
-    return nvs_get_wifi_credentials(sgp30_log_entry_handle);
-}
-
-esp_err_t storage_set_sgp30_timed_measurement(
-    sgp30_timed_measurement_t *timed_measurement
-)
-{
-    nvs_handle_t storage_handle;
-    esp_err_t err;
-
-    // open namespace
-    err =
-        nvs_open(NVS_SGP30_STORAGE_NAMESPACE, NVS_READWRITE, &storage_handle);
-    if (err != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Could not open sgp30 namespace to write");
-        return err;
-    }
-    err = nvs_set_blob(
-        storage_handle,
-        NVS_SGP30_BASELINE_KEY,
-        (void *)timed_measurement,
-        sizeof(sgp30_timed_measurement_t)
-    );
-    if (err != ESP_OK)
-    {
-        nvs_close(storage_handle);
-        ESP_LOGE(TAG, "Could not store thingsboard port");
-        return err;
-    }
-
-    // Commit and close
-    err = nvs_commit(storage_handle);
-    if (err != ESP_OK)
-    {
-        nvs_close(storage_handle);
-        ESP_LOGE(TAG, "Could not commit changes in nvs");
-        return err;
-    }
-    nvs_close(storage_handle);
-    return ESP_OK;
-}
-esp_err_t storage_set_wifi_credentials(wifi_credentials_t *wifi_credentials)
-{
-    return nvs_set_wifi_credentials(wifi_credentials);
-}
-
-esp_err_t nvs_set_wifi_credentials(const wifi_credentials_t *wifi_credentials)
-{
-    nvs_handle_t storage_handle;
-    esp_err_t err;
-
-    // open namespace
-    err = nvs_open(
-        NVS_WIFI_CREDENTIALS_NAMESPACE,
-        NVS_READWRITE,
-        &storage_handle
-    );
-    if (err != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Could not open wifi credentials namespace to write");
-        return err;
-    }
-
-    // Set SSID
-    err = nvs_set_str(
-        storage_handle,
-        NVS_WIFI_CREDENTIALS_SSID_KEY,
-        wifi_credentials->ssid
-    );
-    if (err != ESP_OK)
-    {
-        nvs_close(storage_handle);
-        ESP_LOGE(TAG, "Could not store wifi credentials ssid");
-        return err;
-    }
-
-    // Set password
-    err = nvs_set_str(
-        storage_handle,
-        NVS_WIFI_CREDENTIALS_PASS_KEY,
-        wifi_credentials->password
-    );
-    if (err != ESP_OK)
-    {
-        nvs_close(storage_handle);
-        ESP_LOGE(TAG, "Could not store wifi credentials password");
-        return err;
-    }
-
-    err = nvs_commit(storage_handle);
-    if (err != ESP_OK)
-    {
-        nvs_close(storage_handle);
-        ESP_LOGE(TAG, "Could not commit changes in nvs");
-        return err;
-    }
-    nvs_close(storage_handle);
-    return ESP_OK;
-}
-
-esp_err_t nvs_get_wifi_credentials(wifi_credentials_t *wifi_credentials)
-{
-    nvs_handle_t storage_handle;
-    esp_err_t err;
-
-    // Open handle
-    if (nvs_open(NVS_WIFI_CREDENTIALS_NAMESPACE, NVS_READONLY, &storage_handle)
-        != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Could not open wifi credentials namespace");
-        return ESP_FAIL;
-    }
-
-    // Get SSID
-    size_t wifi_credentials_ssid_len;
-    err = nvs_get_str(
-        storage_handle,
-        NVS_WIFI_CREDENTIALS_SSID_KEY,
-        NULL,
-        &wifi_credentials_ssid_len
-    );
-    if (err != ESP_OK)
-    {
-        nvs_close(storage_handle);
-        ESP_LOGE(TAG, "Could not get wifi credentials ssid len from NVS");
-        return err;
-    }
-    err = nvs_get_str(
-        storage_handle,
-        NVS_WIFI_CREDENTIALS_SSID_KEY,
-        wifi_credentials->ssid,
-        &wifi_credentials_ssid_len
-    );
-    if (err != ESP_OK)
-    {
-        nvs_close(storage_handle);
-        ESP_LOGE(TAG, "Could not get wifi credentials ssid from NVS");
-        return err;
-    }
-
-    // Get pass
-    size_t wifi_credentials_pass_len;
-    err = nvs_get_str(
-        storage_handle,
-        NVS_WIFI_CREDENTIALS_PASS_KEY,
-        NULL,
-        &wifi_credentials_pass_len
-    );
-    if (err != ESP_OK)
-    {
-        nvs_close(storage_handle);
-        ESP_LOGE(TAG, "Could not get wifi credentials pass len from NVS");
-        return err;
-    }
-    err = nvs_get_str(
-        storage_handle,
-        NVS_WIFI_CREDENTIALS_PASS_KEY,
-        wifi_credentials->password,
-        &wifi_credentials_pass_len
-    );
-    if (err != ESP_OK)
-    {
-        nvs_close(storage_handle);
-        ESP_LOGE(TAG, "Could not get wifi credentials pass from NVS");
-        return err;
-    }
-    // Close handle
-    nvs_close(storage_handle);
-
-    return ESP_OK;
-}
-
-esp_err_t nvs_get_sgp30_timed_measurement(
-    sgp30_timed_measurement_t *sgp30_timed_measurement_handle
-)
-{
-    nvs_handle_t storage_handle;
-    esp_err_t err;
-    err = nvs_open(NVS_SGP30_STORAGE_NAMESPACE, NVS_READONLY, &storage_handle);
-    if (err != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Could not open sgp30 namespace in NVS");
-        return err;
-    }
-    // Get
-    size_t timed_measurement_len;
-    err = nvs_get_blob(
-        storage_handle,
-        NVS_SGP30_BASELINE_KEY,
-        NULL,
-        &timed_measurement_len
-    );
-    if (err != ESP_OK)
-    {
-        nvs_close(storage_handle);
-        ESP_LOGE(TAG, "Could not get baseline len from NVS");
-        return err;
-    }
-
-    err = nvs_get_blob(
-        storage_handle,
-        NVS_SGP30_BASELINE_KEY,
-        sgp30_timed_measurement_handle,
-        &timed_measurement_len
-    );
-    if (err != ESP_OK)
-    {
-        nvs_close(storage_handle);
-        ESP_LOGE(TAG, "Could not get baseline from NVS");
-        return err;
-    }
-
-    nvs_close(storage_handle);
-    return ESP_OK;
-}
-
-esp_err_t nvs_set_thingsboard_cfg(const thingsboard_cfg_t *thingsboard_cfg)
-{
-    nvs_handle_t storage_handle;
-    esp_err_t err;
-
-    // Open namespace
-    err = nvs_open(NVS_THINGSBOARD_NAMESPACE, NVS_READWRITE, &storage_handle);
-    if (err != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Could not open thingsboard namespace to write");
-        return err;
-    }
-
-    // Set address
-    err = nvs_set_str(
-        storage_handle,
-        NVS_THINGSBOARD_URI_KEY,
-        thingsboard_cfg->address.uri
-    );
-    if (err != ESP_OK)
-    {
-        nvs_close(storage_handle);
-        ESP_LOGE(TAG, "Could not store thingsboard uri");
-        return err;
-    }
-
-    err = nvs_set_u8(
-        storage_handle,
-        NVS_THINGSBOARD_PORT_KEY,
-        thingsboard_cfg->address.port
-    );
-    if (err != ESP_OK)
-    {
-        nvs_close(storage_handle);
-        ESP_LOGE(TAG, "Could not store thingsboard port");
-        return err;
-    }
-
-    // Set verification
-    err = nvs_set_str(
-        storage_handle,
-        NVS_THINGSBOARD_CACERT_KEY,
-        thingsboard_cfg->verification.certificate
-    );
-    if (err != ESP_OK)
-    {
-        nvs_close(storage_handle);
-        ESP_LOGE(TAG, "Could not store thingsboard verification certificate");
-        return err;
-    }
-
-    // Set credentials
-    err = nvs_set_str(
-        storage_handle,
-        NVS_THINGSBOARD_DEVCERT_KEY,
-        thingsboard_cfg->credentials.authentication.certificate
-    );
-    if (err != ESP_OK)
-    {
-        nvs_close(storage_handle);
-
-        ESP_LOGE(
-            TAG,
-            "Could not store thingsboard credentials authentication "
-            "certificate"
-        );
-        return err;
-    }
-
-    err = nvs_set_str(
-        storage_handle,
-        NVS_THINGSBOARD_CHAINCERT_KEY,
-        thingsboard_cfg->credentials.authentication.key
-    );
-    if (err != ESP_OK)
-    {
-        nvs_close(storage_handle);
-        ESP_LOGE(
-            TAG,
-            "Could not store thingsboard credentials authentication key"
-        );
-        return err;
-    }
-
-    // Commit and close
-    err = nvs_commit(storage_handle);
-    if (err != ESP_OK)
-    {
-        nvs_close(storage_handle);
-        ESP_LOGE(TAG, "Could not commit changes in nvs");
-        return err;
-    }
-    nvs_close(storage_handle);
-    return ESP_OK;
-}
-
-esp_err_t storage_get_thingsboard_cfg(thingsboard_cfg_t *thingsboard_cfg)
-{
-    return nvs_get_thingsboard_cfg(thingsboard_cfg);
-}
-
-esp_err_t nvs_get_thingsboard_cfg(thingsboard_cfg_t *cfg)
+static esp_err_t nvs_get_thingsboard_cfg(thingsboard_cfg_t *cfg)
 {
     nvs_handle_t storage_handle;
     if (nvs_open(NVS_THINGSBOARD_NAMESPACE, NVS_READONLY, &storage_handle)
@@ -500,3 +167,342 @@ esp_err_t nvs_get_thingsboard_cfg(thingsboard_cfg_t *cfg)
 
     return ESP_OK;
 }
+
+static esp_err_t nvs_set_thingsboard_cfg(const thingsboard_cfg_t *thingsboard_cfg)
+{
+    nvs_handle_t storage_handle;
+    esp_err_t err;
+
+    // Open namespace
+    err = nvs_open(NVS_THINGSBOARD_NAMESPACE, NVS_READWRITE, &storage_handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Could not open thingsboard namespace to write");
+        return err;
+    }
+
+    // Set address
+    err = nvs_set_str(
+        storage_handle,
+        NVS_THINGSBOARD_URI_KEY,
+        thingsboard_cfg->address.uri
+    );
+    if (err != ESP_OK)
+    {
+        nvs_close(storage_handle);
+        ESP_LOGE(TAG, "Could not store thingsboard uri");
+        return err;
+    }
+
+    err = nvs_set_u8(
+        storage_handle,
+        NVS_THINGSBOARD_PORT_KEY,
+        thingsboard_cfg->address.port
+    );
+    if (err != ESP_OK)
+    {
+        nvs_close(storage_handle);
+        ESP_LOGE(TAG, "Could not store thingsboard port");
+        return err;
+    }
+
+    // Set verification
+    err = nvs_set_str(
+        storage_handle,
+        NVS_THINGSBOARD_CACERT_KEY,
+        thingsboard_cfg->verification.certificate
+    );
+    if (err != ESP_OK)
+    {
+        nvs_close(storage_handle);
+        ESP_LOGE(TAG, "Could not store thingsboard verification certificate");
+        return err;
+    }
+
+    // Set credentials
+    err = nvs_set_str(
+        storage_handle,
+        NVS_THINGSBOARD_DEVCERT_KEY,
+        thingsboard_cfg->credentials.authentication.certificate
+    );
+    if (err != ESP_OK)
+    {
+        nvs_close(storage_handle);
+
+        ESP_LOGE(
+            TAG,
+            "Could not store thingsboard credentials authentication "
+            "certificate"
+        );
+        return err;
+    }
+
+    err = nvs_set_str(
+        storage_handle,
+        NVS_THINGSBOARD_CHAINCERT_KEY,
+        thingsboard_cfg->credentials.authentication.key
+    );
+    if (err != ESP_OK)
+    {
+        nvs_close(storage_handle);
+        ESP_LOGE(
+            TAG,
+            "Could not store thingsboard credentials authentication key"
+        );
+        return err;
+    }
+
+    // Commit and close
+    err = nvs_commit(storage_handle);
+    if (err != ESP_OK)
+    {
+        nvs_close(storage_handle);
+        ESP_LOGE(TAG, "Could not commit changes in nvs");
+        return err;
+    }
+    nvs_close(storage_handle);
+    return ESP_OK;
+}
+esp_err_t nvs_set_sgp30_baseline(
+    const sgp30_timed_measurement_t *timed_measurement
+)
+{
+    nvs_handle_t storage_handle;
+    esp_err_t err;
+
+    // open namespace
+    err =
+        nvs_open(NVS_SGP30_STORAGE_NAMESPACE, NVS_READWRITE, &storage_handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Could not open sgp30 namespace to write");
+        return err;
+    }
+    err = nvs_set_blob(
+        storage_handle,
+        NVS_SGP30_BASELINE_KEY,
+        (void *)timed_measurement,
+        sizeof(sgp30_timed_measurement_t)
+    );
+    if (err != ESP_OK)
+    {
+        nvs_close(storage_handle);
+        ESP_LOGE(TAG, "Could not store thingsboard port");
+        return err;
+    }
+
+    // Commit and close
+    err = nvs_commit(storage_handle);
+    if (err != ESP_OK)
+    {
+        nvs_close(storage_handle);
+        ESP_LOGE(TAG, "Could not commit changes in nvs");
+        return err;
+    }
+    nvs_close(storage_handle);
+    return ESP_OK;
+}
+
+static esp_err_t nvs_set_wifi_credentials(const wifi_credentials_t *wifi_credentials)
+{
+    nvs_handle_t storage_handle;
+    esp_err_t err;
+
+    // open namespace
+    err = nvs_open(
+        NVS_WIFI_CREDENTIALS_NAMESPACE,
+        NVS_READWRITE,
+        &storage_handle
+    );
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Could not open wifi credentials namespace to write");
+        return err;
+    }
+
+    // Set SSID
+    err = nvs_set_str(
+        storage_handle,
+        NVS_WIFI_CREDENTIALS_SSID_KEY,
+        wifi_credentials->ssid
+    );
+    if (err != ESP_OK)
+    {
+        nvs_close(storage_handle);
+        ESP_LOGE(TAG, "Could not store wifi credentials ssid");
+        return err;
+    }
+
+    // Set password
+    err = nvs_set_str(
+        storage_handle,
+        NVS_WIFI_CREDENTIALS_PASS_KEY,
+        wifi_credentials->password
+    );
+    if (err != ESP_OK)
+    {
+        nvs_close(storage_handle);
+        ESP_LOGE(TAG, "Could not store wifi credentials password");
+        return err;
+    }
+
+    err = nvs_commit(storage_handle);
+    if (err != ESP_OK)
+    {
+        nvs_close(storage_handle);
+        ESP_LOGE(TAG, "Could not commit changes in nvs");
+        return err;
+    }
+    nvs_close(storage_handle);
+    return ESP_OK;
+}
+
+static esp_err_t nvs_get_wifi_credentials(wifi_credentials_t *wifi_credentials)
+{
+    nvs_handle_t storage_handle;
+    esp_err_t err;
+
+    // Open handle
+    if (nvs_open(NVS_WIFI_CREDENTIALS_NAMESPACE, NVS_READONLY, &storage_handle)
+        != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Could not open wifi credentials namespace");
+        return ESP_FAIL;
+    }
+
+    // Get SSID
+    size_t wifi_credentials_ssid_len;
+    err = nvs_get_str(
+        storage_handle,
+        NVS_WIFI_CREDENTIALS_SSID_KEY,
+        NULL,
+        &wifi_credentials_ssid_len
+    );
+    if (err != ESP_OK)
+    {
+        nvs_close(storage_handle);
+        ESP_LOGE(TAG, "Could not get wifi credentials ssid len from NVS");
+        return err;
+    }
+    err = nvs_get_str(
+        storage_handle,
+        NVS_WIFI_CREDENTIALS_SSID_KEY,
+        wifi_credentials->ssid,
+        &wifi_credentials_ssid_len
+    );
+    if (err != ESP_OK)
+    {
+        nvs_close(storage_handle);
+        ESP_LOGE(TAG, "Could not get wifi credentials ssid from NVS");
+        return err;
+    }
+
+    // Get pass
+    size_t wifi_credentials_pass_len;
+    err = nvs_get_str(
+        storage_handle,
+        NVS_WIFI_CREDENTIALS_PASS_KEY,
+        NULL,
+        &wifi_credentials_pass_len
+    );
+    if (err != ESP_OK)
+    {
+        nvs_close(storage_handle);
+        ESP_LOGE(TAG, "Could not get wifi credentials pass len from NVS");
+        return err;
+    }
+    err = nvs_get_str(
+        storage_handle,
+        NVS_WIFI_CREDENTIALS_PASS_KEY,
+        wifi_credentials->password,
+        &wifi_credentials_pass_len
+    );
+    if (err != ESP_OK)
+    {
+        nvs_close(storage_handle);
+        ESP_LOGE(TAG, "Could not get wifi credentials pass from NVS");
+        return err;
+    }
+    // Close handle
+    nvs_close(storage_handle);
+
+    return ESP_OK;
+}
+static esp_err_t nvs_get_sgp30_baseline(
+    sgp30_timed_measurement_t *sgp30_timed_measurement_handle
+)
+{
+    nvs_handle_t storage_handle;
+    esp_err_t err;
+    err = nvs_open(NVS_SGP30_STORAGE_NAMESPACE, NVS_READONLY, &storage_handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Could not open sgp30 namespace in NVS");
+        return err;
+    }
+    // Get
+    size_t timed_measurement_len;
+    err = nvs_get_blob(
+        storage_handle,
+        NVS_SGP30_BASELINE_KEY,
+        NULL,
+        &timed_measurement_len
+    );
+    if (err != ESP_OK)
+    {
+        nvs_close(storage_handle);
+        ESP_LOGE(TAG, "Could not get baseline len from NVS");
+        return err;
+    }
+
+    err = nvs_get_blob(
+        storage_handle,
+        NVS_SGP30_BASELINE_KEY,
+        sgp30_timed_measurement_handle,
+        &timed_measurement_len
+    );
+    if (err != ESP_OK)
+    {
+        nvs_close(storage_handle);
+        ESP_LOGE(TAG, "Could not get baseline from NVS");
+        return err;
+    }
+
+    nvs_close(storage_handle);
+    return ESP_OK;
+}
+
+
+esp_err_t storage_init()
+{
+    return nvs_open("nvs", NVS_READWRITE, &storage_handle);
+}
+
+esp_err_t storage_get_sgp30_baseline(
+    sgp30_timed_measurement_t *sgp30_log_entry_handle
+)
+{
+    return nvs_get_sgp30_baseline(sgp30_log_entry_handle);
+}
+esp_err_t storage_get_wifi_credentials(wifi_credentials_t *sgp30_log_entry_handle)
+{
+    return nvs_get_wifi_credentials(sgp30_log_entry_handle);
+}
+esp_err_t storage_set_wifi_credentials(const wifi_credentials_t *wifi_credentials)
+{
+    return nvs_set_wifi_credentials(wifi_credentials);
+}
+
+esp_err_t storage_set_sgp30_baseline(
+    const sgp30_timed_measurement_t *timed_measurement
+)
+{
+    return nvs_set_sgp30_baseline(timed_measurement);
+}
+
+
+esp_err_t storage_get_thingsboard_cfg(thingsboard_cfg_t *thingsboard_cfg)
+{
+    return nvs_get_thingsboard_cfg(thingsboard_cfg);
+}
+
