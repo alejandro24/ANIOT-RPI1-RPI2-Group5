@@ -1,4 +1,3 @@
-#include "sgp30.h"
 #include "driver/i2c_master.h"
 #include "driver/i2c_types.h"
 #include "esp_check.h"
@@ -10,11 +9,8 @@
 #include "freertos/idf_additions.h"
 #include "freertos/projdefs.h"
 #include "portmacro.h"
+#include "sgp30.h"
 #include "sgp30_types.h"
-#include <math.h>
-#include <reent.h>
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 

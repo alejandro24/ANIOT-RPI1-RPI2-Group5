@@ -1,15 +1,10 @@
 #include "nvs_structures.h"
-#include "esp_check.h"
+#include "esp_log.h"
 #include "esp_err.h"
-#include "mqtt_controller.h"
 #include "nvs.h"
-#include "nvs_flash.h"
-#include "sgp30.h"
 #include "sgp30_types.h"
-#include "softAP_provision.h"
 #include "softap_provision_types.h"
 #include "thingsboard_types.h"
-#include <stdlib.h>
 
 #define NVS_SGP30_STORAGE_NAMESPACE    "sgp30"
 #define NVS_SGP30_BASELINE_KEY         "baseline"

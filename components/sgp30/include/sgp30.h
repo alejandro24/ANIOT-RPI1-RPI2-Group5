@@ -1,16 +1,10 @@
 #ifndef SGP30_H
 #define SGP30_H
 
-#include "driver/i2c_master.h"
 #include "driver/i2c_types.h"
 #include "esp_err.h"
-#include "esp_event.h"
 #include "esp_event_base.h"
-#include "freertos/idf_additions.h"
-#include "nvs_flash.h"
 #include "sgp30_types.h"
-#include <stdint.h>
-#include <time.h>
 
 #define SGP30_I2C_ADDR   ((uint8_t)0x58) /* I2C address of SGP30 sensor */
 #define SGP30_CRC_8_POLY ((uint8_t)0x31) /* CRC-8 generator polynomial */

@@ -1,27 +1,18 @@
 #include <string.h>
-#include <stdlib.h>
 #include <time.h>
-#include <inttypes.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include "cJSON.h"
 #include "esp_err.h"
 #include "esp_event_base.h"
-#include "esp_system.h"
-#include "esp_partition.h"
 #include "freertos/idf_additions.h"
 #include "freertos/projdefs.h"
-#include "nvs_flash.h"
 #include "esp_event.h"
-#include "esp_netif.h"
 
 #include "esp_log.h"
 #include "esp_check.h"
 #include "mqtt_client.h"
-#include "esp_tls.h"
-#include "esp_ota_ops.h"
 #include "portmacro.h"
-#include <sys/param.h>
 #include "mqtt_controller.h"
 #include "thingsboard_types.h"
 

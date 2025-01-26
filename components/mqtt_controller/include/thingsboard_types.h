@@ -2,7 +2,6 @@
 #define THINGSBOARD_TYPES_H
 #include <stdint.h>
 
-typedef char thingsboard_url_t[100];
 typedef struct {
     char* uri;
     uint8_t port;

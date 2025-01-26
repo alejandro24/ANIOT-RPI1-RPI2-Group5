@@ -14,9 +14,6 @@
 #include <wifi_provisioning/manager.h>
 
 #include <wifi_provisioning/scheme_softap.h>
-#include "lwip/err.h"
-#include "lwip/sys.h"
-#include "qrcode.h"
 #include "thingsboard_types.h"
 #include "softAP_provision.h"
 
@@ -139,7 +136,7 @@ esp_err_t thingsboard_url_prov_data_handler(uint32_t session_id, const uint8_t *
                                           uint8_t **outbuf, ssize_t *outlen, void *priv_data)
 {
     if (inbuf) {
-        ESP_LOGI(TAG, "Received data: %.*s", inlen, (char *)inbuf);
+        ESP_LOGI(TAG, "Received data: %.*s", (int) inlen, (char *)inbuf);
         //snprintf(thingsboard_url, sizeof(thingsboard_url), "%.*s", (int)inlen, (char *)inbuf);
         strcpy(provision_thingsboard_cfg.address.uri, (char *)inbuf);
     }
@@ -199,7 +196,7 @@ esp_err_t thingsboard_cnf_prov_data_handler(uint32_t session_id, const uint8_t *
                                           uint8_t **outbuf, ssize_t *outlen, void *priv_data)
 {
     if (inbuf) {
-        ESP_LOGI(TAG, "Received data: %.*s", inlen, (char *)inbuf);
+        ESP_LOGI(TAG, "Received data: %.*s",(int) inlen, (char *)inbuf);
         // Parsear el JSON recibido
         cJSON *root = cJSON_Parse((char *)inbuf);
         ESP_ERROR_CHECK(parse_thingsboard_cfg(root));
@@ -237,11 +234,6 @@ void wifi_prov_print_qr(const char *name, const char *username, const char *pop,
                     ",\"transport\":\"%s\"}",
                     PROV_QR_VERSION, name, transport);
     }
-#ifdef CONFIG_EXAMPLE_PROV_SHOW_QR
-    ESP_LOGI(TAG, "Scan this QR code from the provisioning application for Provisioning.");
-    esp_qrcode_config_t cfg = ESP_QRCODE_CONFIG_DEFAULT();
-    esp_qrcode_generate(&cfg, payload);
-#endif /* CONFIG_APP_WIFI_PROV_SHOW_QR */
     ESP_LOGI(TAG, "If QR code is not visible, copy paste the below URL in a browser.\n%s?data=%s", QRCODE_BASE_URL, payload);
 }
 
@@ -270,7 +262,7 @@ esp_err_t softAP_provision_init(thingsboard_cfg_t *thingsboard_cfg, wifi_credent
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_RETURN_ON_ERROR(esp_wifi_init(&cfg), TAG, "Error iniciando la configuracion Wifi");
 
-    if(thingsboard_cfg == NULL || wifi_credentials == NULL){ 
+    if(thingsboard_cfg == NULL || wifi_credentials == NULL){
         /* Configuration for the provisioning manager */
         wifi_prov_mgr_config_t config = {
             .scheme = wifi_prov_scheme_softap,
@@ -283,7 +275,7 @@ esp_err_t softAP_provision_init(thingsboard_cfg_t *thingsboard_cfg, wifi_credent
         ESP_RETURN_ON_ERROR(wifi_prov_mgr_init(config),TAG, "Fallo iniciando el provisionamiento");
         
         char service_name[12];
-        get_device_service_name(service_name, sizeof(service_name));   
+        get_device_service_name(service_name, sizeof(service_name));
 
     #ifdef CONFIG_EXAMPLE_PROV_SECURITY_VERSION_1
             /* What is the security level that we want (1, 2):

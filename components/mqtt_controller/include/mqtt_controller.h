@@ -2,7 +2,6 @@
 #define MQTT_CONTROLLER_H
 #include <stdio.h>
 #include <string.h>
-#include "esp_event.h"
 #include "cJSON.h"
 #include "esp_event_base.h"
 #include "mqtt_client.h"
@@ -42,7 +41,7 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 //Function that waits to be provision with access token and create the new mqtt client conection
 void mqtt_provision_task(void *pvParameters);
 
-esp_err_t mqtt_provision(thingsboard_url_t thingsboard_url);
+//esp_err_t mqtt_provision(thingsboard_url_t thingsboard_url);
 esp_err_t mqtt_init(esp_event_loop_handle_t loop, thingsboard_cfg_t *cfg);
 esp_err_t mqtt_publish(char* data, size_t data_len);
 #endif //MQTT_CONTROLLER_H

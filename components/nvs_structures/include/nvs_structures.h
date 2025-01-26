@@ -5,7 +5,7 @@
 
 #ifndef NVS_STRUCTURES_H
 #define NVS_STRUCTURES_H
-#include "nvs_flash.h"
+#include "esp_err.h"
 #include "sgp30_types.h"
 #include "softap_provision_types.h"
 #include "thingsboard_types.h"

@@ -1,35 +1,22 @@
+#include "driver/i2c_master.h"
 #include "driver/i2c_types.h"
 #include "esp_check.h"
 #include "esp_err.h"
 #include "esp_event.h"
 #include "esp_event_base.h"
 #include "esp_log.h"
-#include "esp_netif.h"
-#include "esp_timer.h"
 #include "freertos/idf_additions.h"
 #include "freertos/projdefs.h"
 #include "mqtt_controller.h"
 #include "nvs_structures.h"
-#include "portmacro.h"
 #include "sgp30.h"
 #include "sgp30_types.h"
-#include "sntp_sync.h" // Include the SNTP component
 #include "softAP_provision.h"
 #include "thingsboard_types.h"
-#include "wifi.h"
 #include <esp_wifi.h>
-#include <nvs_flash.h>
-#include <stdint.h>
 #include <string.h>
 
 #include "esp_log.h"
-#include "esp_tls.h"
-#include <stdio.h>
-
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "lwip/apps/sntp.h"
-#include "nvs_flash.h"
 
 #define DEVICE_SDA_IO_NUM 21
 #define DEVICE_SCL_IO_NUM 22
