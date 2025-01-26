@@ -351,7 +351,7 @@ esp_err_t softAP_provision_init(thingsboard_cfg_t *thingsboard_cfg, wifi_credent
         *thingsboard url.
         * This call must be made before starting the provisioning.
         */
-        wifi_prov_mgr_endpoint_create("thingsboard-url");
+        wifi_prov_mgr_endpoint_create("thingsboard-cnf");
 
         /* Start provisioning service */
         ESP_RETURN_ON_ERROR(wifi_prov_mgr_start_provisioning(security, (const void *) sec_params, service_name, service_key), TAG, "Fallo al empezar el provisionamiento");
@@ -360,7 +360,7 @@ esp_err_t softAP_provision_init(thingsboard_cfg_t *thingsboard_cfg, wifi_credent
         * This call must be made after starting the provisioning, and only if the endpoint
         * has already been created above.
         */
-        wifi_prov_mgr_endpoint_register("thingsboard-url", thingsboard_url_prov_data_handler, NULL);
+        wifi_prov_mgr_endpoint_register("thingsboard-cnf", thingsboard_cnf_prov_data_handler, NULL);
 
         wifi_prov_print_qr(service_name, username, pop, PROV_TRANSPORT_SOFTAP);
 

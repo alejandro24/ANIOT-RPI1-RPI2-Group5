@@ -5,6 +5,7 @@
 #
 
 import argparse
+import aiofiles
 import asyncio
 import json
 import os
@@ -191,6 +192,24 @@ async def thingsboard_url(tp, sec, url):
     except RuntimeError as e:
         on_except(e)
         return None
+    
+async def thingsboard_cnf(tp, sec, json_path):
+    try:
+        with open(json_path, mode='r') as file:
+            json_data = json.load(file) #Cargamos el contenido de json directamente
+        
+        #Creamos el mensaje con el contenido del JSON
+        message = prov.custom_data_request(sec, json_data)
+        response = await tp.send_data('thingsboard-cnf', message)
+        return (prov.custom_data_response(sec, response) == 0)
+    except RuntimeError as e:
+        on_except(e)
+        return None
+    except Exception as e:
+        print(f"Error al procesar el archivo JSON: {e}")
+        return None
+
+
 
 
 async def scan_wifi_APs(sel_transport, tp, sec):
@@ -407,6 +426,11 @@ async def main():
                         help=desc_format(
                             'This is a parameter to provide the url for '
                             'thingsboard server'))
+    
+    parser.add_argument('--thingsboard_cnf', dest='thingsboard_cnf', type=str, default='',
+                        help=desc_format(
+                            'This is a parameter to provide the path for '
+                            'thingsboard configuration file in json format'))
 
     parser.add_argument('--reset', help='Reset WiFi', action='store_true')
 
@@ -493,6 +517,12 @@ async def main():
             if not await thingsboard_url(obj_transport, obj_security, args.thingsboard_url):
                 raise RuntimeError('Error in Thingsboard URL')
             print('==== Thingsboard URL sent successfully ====')
+
+        if args.thingsboard_cnf != '':
+            print('\n==== Sending Thingsboard CONF JSON to Target ====')
+            if not await thingsboard_cnf(obj_transport, obj_security, args.thingsboard_cnf):
+                raise RuntimeError('Error in Thingsboard CONF JSON')
+            print('==== Thingsboard CONF JSON sent successfully ====')
 
         if args.ssid == '':
             if not await has_capability(obj_transport, 'wifi_scan'):
