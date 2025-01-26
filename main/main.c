@@ -44,17 +44,6 @@ uint16_t send_time = 30;
 thingsboard_cfg_t thingsboard_cfg;
 wifi_credentials_t wifi_credentials;
 
-static void new_send_time_event_handler(
-    void *handler_args,
-    esp_event_base_t base,
-    int32_t event_id,
-    void *event_data
-)
-{
-    send_time = *(int *)event_data;
-    
-}
-
 // wifi handler to take actions for the different wifi events
 static void wifi_event_handler(
     void *arg,
@@ -138,7 +127,7 @@ static void sgp30_on_new_measurement(
     //  Send or store log_entry
 }
 
-static void sgp30_on_new_interval(
+static void mqtt_on_new_interval(
     void *handler_args,
     esp_event_base_t base,
     int32_t event_id,
@@ -171,7 +160,6 @@ static void sgp30_on_new_baseline(
 
 static const sgp30_event_handler_register_t sgp30_registered_events[] = {
     { SGP30_EVENT_NEW_MEASUREMENT, sgp30_on_new_measurement },
-    {    SGP30_EVENT_NEW_INTERVAL,    sgp30_on_new_interval },
     { SGP30_EVENT_NEW_MEASUREMENT,    sgp30_on_new_baseline }
 };
 
@@ -256,7 +244,7 @@ void app_main(void)
             imc_event_loop_handle,
             MQTT_THINGSBOARD_EVENT,
             MQTT_NEW_SEND_TIME,
-            new_send_time_event_handler,
+            mqtt_on_new_interval,
             NULL
         )
     );
@@ -269,9 +257,9 @@ void app_main(void)
         //Start the init of the provision component, we actively wait it to finish the provision to continue
         ESP_ERROR_CHECK(softAP_provision_init(NULL, NULL));
         thingsboard_cfg = get_thingsboard_cfg();
-        wifi_credentials = get_wifi_credentials();    
-        storage_set((const thingsboard_cfg_t*)&thing&thingsboard_cfg);
-        storage_set((const wifi_credentials_t*)&wifi_credentials);    
+        wifi_credentials = get_wifi_credentials();
+        storage_set((const thingsboard_cfg_t*) &thingsboard_cfg);
+        storage_set((const wifi_credentials_t*) &wifi_credentials);
     }
     else if(got_thingboard_cfg != ESP_OK)
     {
@@ -307,7 +295,7 @@ void app_main(void)
     // SGP30_EVENT_NEW_INTERVAL
     mqtt_init(imc_event_loop_handle, &thingsboard_cfg);
 
-    sgp30_start_measuring(1000000);
+    sgp30_start_measuring(1);
 
     /* WIFI Y SNTP
   // Initialize NVS

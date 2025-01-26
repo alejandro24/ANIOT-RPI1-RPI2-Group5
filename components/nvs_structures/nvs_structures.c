@@ -263,7 +263,7 @@ static esp_err_t nvs_set_thingsboard_cfg(const thingsboard_cfg_t *thingsboard_cf
     nvs_close(storage_handle);
     return ESP_OK;
 }
-esp_err_t nvs_set_sgp30_baseline(
+static esp_err_t nvs_set_sgp30_baseline(
     const sgp30_timed_measurement_t *timed_measurement
 )
 {
@@ -506,3 +506,7 @@ esp_err_t storage_get_thingsboard_cfg(thingsboard_cfg_t *thingsboard_cfg)
     return nvs_get_thingsboard_cfg(thingsboard_cfg);
 }
 
+esp_err_t storage_set_thingsboard_cfg(const thingsboard_cfg_t *thingsboard_cfg)
+{
+    return nvs_set_thingsboard_cfg(thingsboard_cfg);
+}

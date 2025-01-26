@@ -183,7 +183,7 @@ sgp30_init(esp_event_loop_handle_t loop, sgp30_measurement_t *baseline);
  *  - ESP_OK : if the timer was started successfully
  *  - ESP_FAIL : if the timer could not be started
  */
-esp_err_t sgp30_start_measuring(uint64_t s);
+esp_err_t sgp30_start_measuring(uint32_t s);
 /**
  * @brief Restarts the measurement timer with a new interval.
  * This function restarts the measurement timer with a new interval.
