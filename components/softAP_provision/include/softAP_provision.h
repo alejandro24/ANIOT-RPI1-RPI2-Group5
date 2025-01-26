@@ -4,6 +4,7 @@
 #include <string.h>
 #include "esp_err.h"
 #include "esp_event.h"
+#include "cJSON.h"
 #include "thingsboard_types.h"
 #include "softap_provision_types.h"
 
@@ -64,7 +65,6 @@ esp_err_t example_get_sec2_salt(const char **salt, uint16_t *salt_len);
 esp_err_t example_get_sec2_verifier(const char **verifier, uint16_t *verifier_len);
 #endif
 
-
 void provision_event_handler(void* arg, esp_event_base_t event_base,
                           int32_t event_id, void* event_data);
 
@@ -76,6 +76,8 @@ esp_err_t thingsboard_url_prov_data_handler(uint32_t session_id, const uint8_t *
                                           uint8_t **outbuf, ssize_t *outlen, void *priv_data);
 
 void wifi_prov_print_qr(const char *name, const char *username, const char *pop, const char *transport);
+
+esp_err_t parse_thingsboard_cfg(cJSON *root);
 
 thingsboard_cfg_t get_thingsboard_cfg();
 

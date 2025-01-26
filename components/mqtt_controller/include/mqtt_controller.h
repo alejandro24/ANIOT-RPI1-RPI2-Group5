@@ -27,8 +27,6 @@ void received_data(cJSON *root, char* topic, size_t len);
 //Function to check if the device is being provision with his access token in this case the access token is store
 bool is_provision(cJSON *root, char* topic, size_t len);
 
-esp_err_t mqtt_set_access_token(char* token, size_t token_len);
-
 /*
  * @brief Event handler registered to receive MQTT events
  *

@@ -253,3 +253,25 @@ esp_err_t nvs_get_thingsboard_cfg(thingsboard_cfg_t *cfg)
     cfg->credentials.authentication.key = chain_cert;
     return ESP_OK;
 }
+
+esp_err_t nvs_set_wifi_credentials(const wifi_credentials_t *wifi_credentials_t) {
+    ESP_RETURN_ON_ERROR(
+        nvs_set_str(
+            storage_handle,
+            "wf_ssid",
+            wifi_credentials_t->ssid
+        ),
+        TAG,
+        "Could not store wifi ssid"
+    );
+    ESP_RETURN_ON_ERROR(
+        nvs_set_str(
+            storage_handle,
+            "wf_pass",
+            wifi_credentials_t->password
+        ),
+        TAG,
+        "Could not store wifi password"
+    );
+    return ESP_OK;
+}

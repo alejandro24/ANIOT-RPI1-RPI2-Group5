@@ -6,7 +6,7 @@
 #include <freertos/task.h>
 #include "esp_err.h"
 #include "esp_check.h"
-
+#include "cJSON.h"
 #include <esp_log.h>
 #include <esp_wifi.h>
 #include <esp_event.h>
@@ -21,8 +21,6 @@
 #include "softAP_provision.h"
 
 static const char *TAG = "softAP_provisioning";
-//[NVS]
-char *provision_thingsboard_url;
 wifi_credentials_t provision_wifi_credentials;
 thingsboard_cfg_t provision_thingsboard_cfg;
 static SemaphoreHandle_t is_provisioned;
@@ -53,6 +51,13 @@ esp_err_t example_get_sec2_verifier(const char **verifier, uint16_t *verifier_le
 #endif
 }
 #endif
+
+void init_thingsboard_cfg_wifi_credentials(size_t url_len, size_t cert_len, size_t key_len, size_t chain_len){
+    provision_thingsboard_cfg.address.uri = malloc(sizeof(char)*(url_len));
+    provision_thingsboard_cfg.credentials.authentication.certificate = malloc(sizeof(char)*(cert_len));
+    provision_thingsboard_cfg.credentials.authentication.key = malloc(sizeof(char)*(key_len));
+    provision_thingsboard_cfg.verification.certificate = malloc(sizeof(char)*(chain_len));
+}
 
 void provision_event_handler(void* arg, esp_event_base_t event_base,
                           int32_t event_id, void* event_data)
@@ -137,6 +142,67 @@ esp_err_t thingsboard_url_prov_data_handler(uint32_t session_id, const uint8_t *
         ESP_LOGI(TAG, "Received data: %.*s", inlen, (char *)inbuf);
         //snprintf(thingsboard_url, sizeof(thingsboard_url), "%.*s", (int)inlen, (char *)inbuf);
         strcpy(provision_thingsboard_cfg.address.uri, (char *)inbuf);
+    }
+    char response[] = "SUCCESS";
+    *outbuf = (uint8_t *)strdup(response);
+    if (*outbuf == NULL) {
+        ESP_LOGE(TAG, "System out of memory");
+        return ESP_ERR_NO_MEM;
+    }
+    *outlen = strlen(response) + 1; /* +1 for NULL terminating byte */
+
+    return ESP_OK;
+}
+
+void delete_json(cJSON *root, cJSON *url, cJSON *port, cJSON *cert, cJSON *key, cJSON *chain){
+    cJSON_Delete(root);
+    cJSON_Delete(url);
+    cJSON_Delete(port);
+    cJSON_Delete(cert);
+    cJSON_Delete(key);
+    cJSON_Delete(chain);
+}
+
+esp_err_t parse_thingsboard_cfg(cJSON *root) {
+     if (root == NULL) {
+        ESP_LOGE(TAG, "Error parsing JSON");
+        return ESP_FAIL;
+    }
+
+    cJSON *url = cJSON_GetObjectItem(root, "url");
+    cJSON *port = cJSON_GetObjectItem(root, "port");
+    cJSON *cert = cJSON_GetObjectItem(root, "server_cert");
+    cJSON *key = cJSON_GetObjectItem(root, "device_key");
+    cJSON *chain = cJSON_GetObjectItem(root, "chain_cert");
+
+    if(url && cert && key && chain && port){
+        init_thingsboard_cfg_wifi_credentials(strlen(url->valuestring), strlen(cert->valuestring), strlen(key->valuestring), strlen(chain->valuestring));
+
+        strcpy(provision_thingsboard_cfg.address.uri, url->valuestring);
+        strcpy(provision_thingsboard_cfg.credentials.authentication.key, key->valuestring);
+        strcpy(provision_thingsboard_cfg.credentials.authentication.certificate, cert->valuestring);
+        strcpy(provision_thingsboard_cfg.verification.certificate, chain->valuestring);
+        provision_thingsboard_cfg.address.port = port->valueint;
+        delete_json(root, url, port, cert, key, chain);
+    }
+    else{
+        ESP_LOGE(TAG, "Error parsing JSON");
+        delete_json(root, url, port, cert, key, chain);
+
+        return ESP_FAIL;
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t thingsboard_cnf_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen,
+                                          uint8_t **outbuf, ssize_t *outlen, void *priv_data)
+{
+    if (inbuf) {
+        ESP_LOGI(TAG, "Received data: %.*s", inlen, (char *)inbuf);
+        // Parsear el JSON recibido
+        cJSON *root = cJSON_Parse((char *)inbuf);
+        ESP_ERROR_CHECK(parse_thingsboard_cfg(root));
     }
     char response[] = "SUCCESS";
     *outbuf = (uint8_t *)strdup(response);

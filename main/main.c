@@ -222,13 +222,35 @@ void app_main(void) {
     }
 
 
-    // Set up event listeenr for MQTT module
+    // Set up event listener for wifi events
+    ESP_ERROR_CHECK(
+        esp_event_handler_register_with(
+            imc_event_loop_handle,
+            WIFI_EVENT,
+            ESP_EVENT_ANY_ID,
+            wifi_event_handler,
+            NULL
+        )
+    );
+
+    // Set up event listener for IP event
+    ESP_ERROR_CHECK(
+        esp_event_handler_register_with(
+            imc_event_loop_handle,
+            IP_EVENT,
+            IP_EVENT_STA_GOT_IP,
+            wifi_event_handler,
+            NULL
+        )
+    );
+
+    // Set up event listener for new send time
     ESP_ERROR_CHECK(
         esp_event_handler_register_with(
             imc_event_loop_handle,
             MQTT_THINGSBOARD_EVENT,
             MQTT_NEW_SEND_TIME,
-            mqtt_event_handler,
+            new_send_time_event_handler,
             NULL
         )
     );
@@ -236,12 +258,31 @@ void app_main(void) {
     //TODO: Intentar sacar de nvs los datos de provisionamiento para pasarlos a el init de provisionamiento
     esp_err_t got_thingboard_cfg = storage_get(&thingsboard_cfg);
     esp_err_t got_wifi_credentials = storage_get(&wifi_credentials);
-    if( got_thingboard_cfg != got_wifi_credentials )
+    if( got_thingboard_cfg != got_wifi_credentials)
     {
         ESP_LOGE(TAG, "Provisioning State Corrupt");
+        //Start the init of the provision component, we actively wait it to finish the provision to continue
+        ESP_ERROR_CHECK(softAP_provision_init(NULL, NULL));
+        thingsboard_cfg = get_thingsboard_cfg();
+        wifi_credentials = get_wifi_credentials();    
+        nvs_set_thingboard_cfg(&thingsboard_cfg);
+        nvs_set_wifi_credentials(&wifi_credentials);    
     }
-    //Start the init of the provision component, we actively wait it to finish the provision to continue
-    ESP_ERROR_CHECK(softAP_provision_init(&thingsboard_cfg, &wifi_credentials));
+    else if(got_thingboard_cfg != ESP_OK)
+    {
+        ESP_LOGI(TAG, "Device not provisioned");
+        //Start the init of the provision component, we actively wait it to finish the provision to continue
+        ESP_ERROR_CHECK(softAP_provision_init(NULL, NULL));
+        thingsboard_cfg = get_thingsboard_cfg();
+        wifi_credentials = get_wifi_credentials();
+        nvs_set_thingboard_cfg(&thingsboard_cfg);
+        nvs_set_wifi_credentials(&wifi_credentials);
+    }
+    else
+    {
+        ESP_LOGI(TAG, "Device provisioned");
+        ESP_ERROR_CHECK(softAP_provision_init(&thingsboard_cfg, &wifi_credentials));
+    }
 
     // At this point a valid time is required
     // We start the sensor
