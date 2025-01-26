@@ -41,7 +41,6 @@ esp_event_loop_handle_t imc_event_loop_handle;
 SemaphoreHandle_t sgp30_req_measurement;
 sgp30_measurement_log_t sgp30_log;
 uint16_t send_time = 30;
-static EventGroupHandle_t provision_event_group;
 thingsboard_cfg_t thingsboard_cfg;
 wifi_credentials_t wifi_credentials;
 
@@ -239,56 +238,56 @@ void app_main(void)
     // Set up event listeners for SGP30 module.
     for (int i = 0; i < sgp30_registered_events_len; i++)
     {
-        ESP_ERROR_CHECK(esp_event_handler_register_with(
-            imc_event_loop_handle,
-            SGP30_EVENT,
-            sgp30_registered_events[i].event_id,
-            sgp30_registered_events[i].event_handler,
-            NULL
-        ));
+        ESP_ERROR_CHECK(
+            esp_event_handler_register_with(
+                imc_event_loop_handle,
+                SGP30_EVENT,
+                sgp30_registered_events[i].event_id,
+                sgp30_registered_events[i].event_handler,
+                NULL
+            )
+        );
     }
 
-    // Set up event listeenr for MQTT module
-    ESP_ERROR_CHECK(esp_event_handler_register_with(
-        imc_event_loop_handle,
-        MQTT_THINGSBOARD_EVENT,
-        MQTT_NEW_SEND_TIME,
-        mqtt_event_handler,
-        NULL
-    ));
 
-    // TODO: Intentar sacar de nvs los datos de provisionamiento para pasarlos
-    // a el init de provisionamiento
+    // Set up event listeenr for MQTT module
+    ESP_ERROR_CHECK(
+        esp_event_handler_register_with(
+            imc_event_loop_handle,
+            MQTT_THINGSBOARD_EVENT,
+            MQTT_NEW_SEND_TIME,
+            new_send_time_event_handler,
+            NULL
+        )
+    );
 
     esp_err_t got_thingboard_cfg = storage_get(&thingsboard_cfg);
     esp_err_t got_wifi_credentials = storage_get(&wifi_credentials);
-    ESP_LOGI(
-        TAG,
-        "\tCA Cert:\n%s\n\tDevice Cert:\n%s\tChain Cert:\n%s\n",
-        thingsboard_cfg.verification.certificate,
-        thingsboard_cfg.credentials.authentication.certificate,
-        thingsboard_cfg.credentials.authentication.key
-    );
-    if (got_thingboard_cfg != got_wifi_credentials)
+    if( got_thingboard_cfg != got_wifi_credentials)
     {
         ESP_LOGE(TAG, "Provisioning State Corrupt");
+        //Start the init of the provision component, we actively wait it to finish the provision to continue
+        ESP_ERROR_CHECK(softAP_provision_init(NULL, NULL));
+        thingsboard_cfg = get_thingsboard_cfg();
+        wifi_credentials = get_wifi_credentials();    
+        storage_set((const thingsboard_cfg_t*)&thing&thingsboard_cfg);
+        storage_set((const wifi_credentials_t*)&wifi_credentials);    
     }
-    // Start the init of the provision component, we actively wait it to finish
-    // the provision to continue
-    //    provision_event_group = xEventGroupCreate();
-    //    ESP_ERROR_CHECK(
-    //        softAP_provision_init(provision_event_group, NULL,
-    //        &wifi_credentials)
-    //    );
-    //
-    //    /* Wait for Provision*/
-    //    xEventGroupWaitBits(
-    //        provision_event_group,
-    //        PROVISION_DONE_EVENT,
-    //        true,
-    //        true,
-    //        portMAX_DELAY
-    //    );
+    else if(got_thingboard_cfg != ESP_OK)
+    {
+        ESP_LOGI(TAG, "Device not provisioned");
+        //Start the init of the provision component, we actively wait it to finish the provision to continue
+        ESP_ERROR_CHECK(softAP_provision_init(NULL, NULL));
+        thingsboard_cfg = get_thingsboard_cfg();
+        wifi_credentials = get_wifi_credentials();
+        storage_set((const thingsboard_cfg_t*)&thingsboard_cfg);
+        storage_set((const wifi_credentials_t*)&wifi_credentials);
+    }
+    else
+    {
+        ESP_LOGI(TAG, "Device provisioned");
+        ESP_ERROR_CHECK(softAP_provision_init(&thingsboard_cfg, &wifi_credentials));
+    }
 
     // At this point a valid time is required
     // We start the sensor

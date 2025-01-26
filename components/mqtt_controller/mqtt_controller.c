@@ -30,16 +30,15 @@
 #define THINGSBOARD_PROVISION_USERNAME "provision"
 #define DEVICE_ATTRIBUTES_TOPIC "v1/devices/me/attributes"
 #define DEVICE_TELEMETRY_TOPIC "v1/devices/me/telemetry"
-#define PROVISION_REQUEST_TOPIC "/provision/request"
-#define PROVISION_RESPONSE_TOPIC "/provision/response"
+#define PROVISION_REQUEST_TOPIC "/provision/request/"
+#define PROVISION_RESPONSE_TOPIC "/provision/response/+"
+#define PROVISION_RESPONSE_TOPIC_RET "/provision/response/"
 
 static const char *TAG = "mqtt_thingsboard";
 esp_event_loop_handle_t event_loop;
 esp_mqtt_client_handle_t client;
 static SemaphoreHandle_t is_provisioned;  // Cola para manejar eventos
-//[NVS]
-static char access_token[MAX_ACCESS_TOKEN_LEN];
-static size_t access_token_len;
+int request_count = 0;
 
 ESP_EVENT_DEFINE_BASE(MQTT_THINGSBOARD_EVENT);
 
@@ -49,9 +48,19 @@ static void mqtt_connected_event_handler(
     int32_t event_id,
     void *event_data
 ) {
+    char *topic;
     ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
-    ESP_LOGI(TAG, "Conectado con token de acceso: %s", access_token);
     esp_mqtt_client_subscribe(client, DEVICE_ATTRIBUTES_TOPIC, 0);
+    esp_mqtt_client_subscribe(client, PROVISION_RESPONSE_TOPIC, 0);
+    request_count++;
+    int required_size = snprintf(NULL, 0, "%s%d", PROVISION_REQUEST_TOPIC, request_count) + 1; // +1 para el carácter nulo
+    topic = (char*) malloc(required_size);
+    if (topic) {
+        snprintf(topic, required_size, "%s%d", PROVISION_REQUEST_TOPIC, request_count);
+        // Usar topic
+        esp_mqtt_client_publish(client, topic, "{\"sharedKeys\":\"send_time\"}", 0, 1, 0);
+        free(topic); // Liberar memoria cuando ya no se necesite
+    }
 }
 
 static void mqtt_disconnected_event_handler(
@@ -145,8 +154,13 @@ void log_error_if_nonzero(const char *message, int error_code)
 }
 
 void received_data(cJSON *root, char* topic, size_t topic_len){
-    cJSON *item;
+    cJSON *item = NULL, *shared = NULL;
     int send_time;
+    int required_size = snprintf(NULL, 0, "%s%d", PROVISION_RESPONSE_TOPIC_RET, request_count) + 1; // +1 para el carácter nulo
+    char * request_topic = (char*) malloc(required_size);
+    if (request_topic) {
+        snprintf(request_topic, required_size, "%s%d", PROVISION_REQUEST_TOPIC, request_count);
+    }
     if(strncmp(topic, DEVICE_ATTRIBUTES_TOPIC, topic_len) == 0){
         if(cJSON_HasObjectItem(root, "send_time")){
             item = cJSON_GetObjectItem(root, "send_time");
@@ -157,19 +171,37 @@ void received_data(cJSON *root, char* topic, size_t topic_len){
             }
         }
     }
+    else if(strncmp(topic, request_topic, topic_len) == 0){
+        if(cJSON_HasObjectItem(root, "shared")){
+            shared = cJSON_GetObjectItem(root, "shared");
+            if(cJSON_HasObjectItem(shared, "send_time")){
+                item = cJSON_GetObjectItem(root, "send_time");
+                if(cJSON_IsNumber(item)){
+                    send_time = item->valueint;
+                    ESP_ERROR_CHECK(
+                        esp_event_post_to(event_loop, MQTT_THINGSBOARD_EVENT, MQTT_NEW_SEND_TIME, &send_time, sizeof(send_time), portMAX_DELAY));
+                }
+            }
+        }
+    }
+    free(request_topic);
+    cJSON_Delete(item);
+    cJSON_Delete(shared);
 }
 
 bool is_provision(cJSON *root, char* topic, size_t topic_len){
-    cJSON *receive;
+    cJSON *receive = NULL;
 
     if(strncmp(topic, PROVISION_RESPONSE_TOPIC, topic_len) == 0){
         receive = cJSON_GetObjectItem(root, "status");
         if(strcmp(receive->valuestring, "SUCCESS") == 0){
             receive = cJSON_GetObjectItem(root, "credentialsValue");
-            mqtt_set_access_token(receive->valuestring, strlen(receive->valuestring));
+            //mqtt_set_access_token(receive->valuestring, strlen(receive->valuestring));
+            cJSON_Delete(receive);
             return true;
         }
     }
+    cJSON_Delete(receive);
     return false;
 }
 
@@ -242,17 +274,6 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
     default:
         ESP_LOGI(TAG, "Other event id:%d", event->event_id);
         break;
-    }
-}
-
-
-esp_err_t mqtt_set_access_token(char* token, size_t token_len) {
-    if (token_len > MAX_ACCESS_TOKEN_LEN) {
-        return ESP_ERR_INVALID_SIZE;
-    } else {
-        access_token_len = token_len;
-        strncpy(access_token, token, token_len);
-        return ESP_OK;
     }
 }
 
