@@ -7,17 +7,19 @@
 #include "esp_log.h"
 #include "freertos/idf_additions.h"
 #include "freertos/projdefs.h"
+#include "softAP_provision.h"
+#include "softap_provision_types.h"
 #include "mqtt_controller.h"
 #include "nvs_structures.h"
 #include "sgp30.h"
 #include "sgp30_types.h"
-#include "softAP_provision.h"
 #include "thingsboard_types.h"
 #include <esp_wifi.h>
 #include <string.h>
 
 #include "esp_log.h"
 
+#define DEFAULT_MEASURING_TIME 10
 #define DEVICE_SDA_IO_NUM 21
 #define DEVICE_SCL_IO_NUM 22
 
@@ -145,6 +147,7 @@ static void sgp30_on_new_baseline(
     );
 }
 
+#ifndef DEBUGGING_NVS
 static const sgp30_event_handler_register_t sgp30_registered_events[] = {
     { SGP30_EVENT_NEW_MEASUREMENT, sgp30_on_new_measurement },
     { SGP30_EVENT_NEW_MEASUREMENT,    sgp30_on_new_baseline }
@@ -152,6 +155,7 @@ static const sgp30_event_handler_register_t sgp30_registered_events[] = {
 
 static const size_t sgp30_registered_events_len =
     sizeof(sgp30_registered_events) / sizeof(sgp30_registered_events[0]);
+#endif
 
 static esp_err_t init_i2c(i2c_master_bus_handle_t *bus_handle)
 {
@@ -191,6 +195,15 @@ char *prepare_meassure_send(long ts, sgp30_measurement_t measurement)
 
 void app_main(void)
 {
+
+    #ifdef DEBUGGING_NVS
+    ESP_LOGI(TAG, "Starting NVS debugging");
+    ESP_ERROR_CHECK(storage_init());
+    storage_get(&thingsboard_cfg);
+    ESP_LOGI(TAG, "Thingsboard URI: \n\t%s\n Thingsboard Port: \n\t%d\n Thingsboard Device Certificate: \n\t%s\n Thingsboard Chain Certificate: \n\t%s\n Thingsboard CA Certificate: \n\t%s", thingsboard_cfg.address.uri, thingsboard_cfg.address.port, thingsboard_cfg.credentials.authentication.certificate, thingsboard_cfg.credentials.authentication.key, thingsboard_cfg.verification.certificate);
+    storage_get(&wifi_credentials);
+    ESP_LOGI(TAG, "Wifi SSID: \n\t%s\n Wifi Password: \n\t%s", wifi_credentials.ssid, wifi_credentials.password);
+    #else
 
     esp_event_loop_args_t imc_event_loop_args = {
         // An event loop for sensoring related events
@@ -241,22 +254,22 @@ void app_main(void)
     if( got_thingboard_cfg != got_wifi_credentials)
     {
         ESP_LOGE(TAG, "Provisioning State Corrupt");
+        ESP_ERROR_CHECK(storage_erase());
+        esp_restart();
+    }
+    else if(got_thingboard_cfg != ESP_OK)
+    {
+        #ifdef PROVISIONING_SOFTAP
+        ESP_LOGI(TAG, "Device not provisioned");
         //Start the init of the provision component, we actively wait it to finish the provision to continue
         ESP_ERROR_CHECK(softAP_provision_init(NULL, NULL));
         thingsboard_cfg = get_thingsboard_cfg();
         wifi_credentials = get_wifi_credentials();
         storage_set((const thingsboard_cfg_t*) &thingsboard_cfg);
         storage_set((const wifi_credentials_t*) &wifi_credentials);
-    }
-    else if(got_thingboard_cfg != ESP_OK)
-    {
-        ESP_LOGI(TAG, "Device not provisioned");
-        //Start the init of the provision component, we actively wait it to finish the provision to continue
-        ESP_ERROR_CHECK(softAP_provision_init(NULL, NULL));
-        thingsboard_cfg = get_thingsboard_cfg();
-        wifi_credentials = get_wifi_credentials();
-        storage_set((const thingsboard_cfg_t*)&thingsboard_cfg);
-        storage_set((const wifi_credentials_t*)&wifi_credentials);
+        #else
+        ESP_LOGE(TAG, "Device not provisioned");
+        #endif
     }
     else
     {
@@ -282,60 +295,6 @@ void app_main(void)
     // SGP30_EVENT_NEW_INTERVAL
     mqtt_init(imc_event_loop_handle, &thingsboard_cfg);
 
-    sgp30_start_measuring(1);
-
-    /* WIFI Y SNTP
-  // Initialize NVS
-  esp_err_t ret = nvs_flash_init();
-  if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
-  { ESP_ERROR_CHECK(nvs_flash_erase()); ret = nvs_flash_init();
-  }
-  ESP_ERROR_CHECK(ret);
-
-  ESP_LOGI(TAG, "NVS initialized successfully");
-
-  // Initialize Wi-Fi
-  ESP_LOGI(TAG, "Initializing Wi-Fi...");
-  wifi_init_sta();
-
-  // Wait for Wi-Fi connection
-  ESP_LOGI(TAG, "Waiting for Wi-Fi connection...");
-  int retries = 0;
-  while (retries < 20) {
-  if (esp_wifi_connect() == ESP_OK) {
-      ESP_LOGI(TAG, "Wi-Fi connected successfully!");
-      break;
-  }
-  retries++;
-  ESP_LOGI(TAG, "Retrying Wi-Fi connection... Attempt %d", retries);
-  vTaskDelay(pdMS_TO_TICKS(2000));
-  }
-
-  if (retries == 20) {
-  ESP_LOGE(TAG, "Failed to connect to Wi-Fi after multiple attempts");
-  return; // Stop execution if Wi-Fi connection fails
-  }
-
-  // Attempt SNTP synchronization
-  if (!obtain_time()) {
-  ESP_LOGE(TAG, "SNTP synchronization failed after multiple attempts");
-  return; // Stop execution if SNTP synchronization fails
-  }
-
-  // Continue with the rest of the application logic
-  ESP_LOGI(TAG, "Application logic continues...");
-
-
-  if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
-  {
-     // NVS partition was truncated and needs to be erased
-
-     ESP_ERROR_CHECK(nvs_flash_erase());
-
-     //Retry nvs_flash_init
-     ESP_ERROR_CHECK(nvs_flash_init());
-  }
-
-  ESP_ERROR_CHECK(ret);
-  */
+    sgp30_start_measuring(DEFAULT_MEASURING_TIME);
+    #endif
 }

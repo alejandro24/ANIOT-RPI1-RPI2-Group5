@@ -33,6 +33,13 @@
  */
 esp_err_t storage_init();
 /**
+ * @brief Erase the storage.
+ * @return
+ * - ESP_OK: Success
+ * - some other error code: Failure
+ */
+esp_err_t storage_erase();
+/**
  * @brief Get the sgp30 baseline from the storage.
  * @param baseline Pointer to the sgp30 baseline.
  * @return

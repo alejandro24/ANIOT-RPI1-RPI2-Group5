@@ -1,7 +1,10 @@
 key,type,encoding,value
-certs,namespace,,
+thingsboard,namespace,,
+uri,data,string,pablicdomain.com
+port,data,u16,8883
 ca_cert,file,string,certs/server.pem
-priv_key,file,string,certs/deviceKey.pem
-dev_cert,file,string,certs/deviceCert.pem
-int_cert,file,string,certs/intermediateCert.pem
-root_cert,file,string,certs/rootCert.pem
+dev_key,file,string,certs/deviceKey.pem
+chain_cert,file,string,certs/chainCert.pem
+wifi_cred,namespace,,
+ssid,data,string,myssid
+pass,data,string,mypass

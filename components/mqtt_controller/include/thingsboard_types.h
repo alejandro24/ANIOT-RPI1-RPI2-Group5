@@ -4,7 +4,7 @@
 
 typedef struct {
     char* uri;
-    uint8_t port;
+    uint16_t port;
 } thingsboard_address_t;
 typedef struct {
     char* certificate;

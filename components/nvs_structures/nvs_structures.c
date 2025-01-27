@@ -1,3 +1,4 @@
+#include "nvs_flash.h"
 #include "nvs_structures.h"
 #include "esp_log.h"
 #include "esp_err.h"
@@ -15,7 +16,7 @@
 #define NVS_THINGSBOARD_URI_KEY        "uri"
 #define NVS_THINGSBOARD_PORT_KEY       "port"
 #define NVS_THINGSBOARD_CACERT_KEY     "ca_cert"
-#define NVS_THINGSBOARD_DEVCERT_KEY    "dev_cert"
+#define NVS_THINGSBOARD_DEVCERT_KEY    "dev_key"
 #define NVS_THINGSBOARD_CHAINCERT_KEY  "chain_cert"
 
 #define TAG "NVS"
@@ -47,8 +48,8 @@ static esp_err_t nvs_get_thingsboard_cfg(thingsboard_cfg_t *cfg)
         ESP_LOGE(TAG, "Could not get thingsboard uri");
         return ESP_FAIL;
     }
-    uint8_t port;
-    if (nvs_get_u8(storage_handle, NVS_THINGSBOARD_PORT_KEY, &port) != ESP_OK)
+    uint16_t port;
+    if (nvs_get_u16(storage_handle, NVS_THINGSBOARD_PORT_KEY, &port) != ESP_OK)
     {
         nvs_close(storage_handle);
         free(uri);
@@ -189,7 +190,7 @@ static esp_err_t nvs_set_thingsboard_cfg(const thingsboard_cfg_t *thingsboard_cf
         return err;
     }
 
-    err = nvs_set_u8(
+    err = nvs_set_u16(
         storage_handle,
         NVS_THINGSBOARD_PORT_KEY,
         thingsboard_cfg->address.port
@@ -467,10 +468,31 @@ static esp_err_t nvs_get_sgp30_baseline(
     return ESP_OK;
 }
 
-
 esp_err_t storage_init()
 {
-    return nvs_open("nvs", NVS_READWRITE, &storage_handle);
+    esp_err_t err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_init();
+    }
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Could not initialize NVS");
+        return err;
+    }
+    return ESP_OK;
+}
+
+esp_err_t storage_erase()
+{
+    esp_err_t err = nvs_flash_erase();
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Could not erase NVS");
+        return err;
+    }
+    return ESP_OK;
 }
 
 esp_err_t storage_get_sgp30_baseline(
@@ -478,14 +500,6 @@ esp_err_t storage_get_sgp30_baseline(
 )
 {
     return nvs_get_sgp30_baseline(sgp30_log_entry_handle);
-}
-esp_err_t storage_get_wifi_credentials(wifi_credentials_t *sgp30_log_entry_handle)
-{
-    return nvs_get_wifi_credentials(sgp30_log_entry_handle);
-}
-esp_err_t storage_set_wifi_credentials(const wifi_credentials_t *wifi_credentials)
-{
-    return nvs_set_wifi_credentials(wifi_credentials);
 }
 
 esp_err_t storage_set_sgp30_baseline(
@@ -495,6 +509,15 @@ esp_err_t storage_set_sgp30_baseline(
     return nvs_set_sgp30_baseline(timed_measurement);
 }
 
+esp_err_t storage_get_wifi_credentials(wifi_credentials_t *sgp30_log_entry_handle)
+{
+    return nvs_get_wifi_credentials(sgp30_log_entry_handle);
+}
+
+esp_err_t storage_set_wifi_credentials(const wifi_credentials_t *wifi_credentials)
+{
+    return nvs_set_wifi_credentials(wifi_credentials);
+}
 
 esp_err_t storage_get_thingsboard_cfg(thingsboard_cfg_t *thingsboard_cfg)
 {
