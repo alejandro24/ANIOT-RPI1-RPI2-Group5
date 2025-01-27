@@ -1,3 +1,22 @@
+docstring='This script builds and flashes an ESP32 project.
+
+ Usage:
+   ./build_project.sh -p <port> -c <chip>
+
+ Options:
+   -p <port>   Specify the serial port to use for flashing (e.g., /dev/ttyUSB0)
+   -c <chip>   Specify the chip type (e.g., esp32)
+
+ Description:
+   This script performs the following steps:
+     1. Parses command-line options for the serial port and chip type.
+     2. Builds the project using idf.py.
+     3. Generates the NVS partition using the nvs_partition_gen.py script.
+     4. Flashes the project to the specified chip using esptool.py.
+
+ Example:
+   ./build_project.sh -p /dev/ttyUSB0 -c esp32
+'
 while getopts ":p:c:f:" opt; do
     case ${opt} in
     p)
@@ -12,6 +31,11 @@ while getopts ":p:c:f:" opt; do
         ;;
     esac
 done
+# Check if all required parameters are provided
+if [ -z "${port}" ] || [ -z "${chip}" ]; then
+    echo $docstring
+    exit 1
+fi
 
 echo "Building the project"
 idf.py build
