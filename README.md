@@ -8,7 +8,6 @@ It has been developed by the following IOT Master students:
 
 
 
-
 # _Sample project_
 
 (See the README.md file in the upper level 'examples' directory for more information about examples.)
@@ -34,7 +33,7 @@ Project Management:
 A GitHub repository has been created to follow a collaborative working model. Additionally, a Project in GitHub has been defined to help team members to track, prioritise and identify potential delays/stoppers to address accordingly. Please, refers to the Github site: https://github.com/alejandro24/ANIOT-RPI1-RPI2-Group5
 
 # _Design_
-Once objectives and mandatory and optinal requirements have been analysed by the team, an initial system definition was performed. It includes workflow definition, gaps 
+Once objectives and mandatory and optinal requirements have been analysed by the team, an initial system definition was performed. It includes workflow diagram and component definition. 
 
 ## Workflow diagram
 We have defined the following initial workflow diagram for our Air quality evaluation system.
@@ -67,6 +66,9 @@ Once one measurement has been completed, we will check if WiFi is connected. If 
 
 
 ![ProyectoFinal-Group5-Workflow_Diagram](https://github.com/user-attachments/assets/e4f287a2-2356-40ed-9cbb-9bcfc61d35d1)
+
+## Components
+The following components have been considered and deployed for this 
 
 # _Deployement_
 
