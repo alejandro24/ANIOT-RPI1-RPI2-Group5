@@ -68,7 +68,45 @@ Once one measurement has been completed, we will check if WiFi is connected. If 
 ![ProyectoFinal-Group5-Workflow_Diagram](https://github.com/user-attachments/assets/e4f287a2-2356-40ed-9cbb-9bcfc61d35d1)
 
 ## Components
-The following components have been considered and deployed for this 
+The following components have been considered and deployed for this system:
+- MQTT controller:
+   - void received_data(cJSON *root, char* topic, size_t len): Function to work with the data received from the subscribed topics.
+   - bool is_provision(cJSON *root, char* topic, size_t len): Function to check if the device is being provision with his access token in this case the access token is store.
+   - void log_error_if_nonzero(const char *message, int error_code):
+   - void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
+   - void mqtt_provision_task(void *pvParameters): Function that waits to be provision with access token and create the new      mqtt client conection.
+   - esp_err_t mqtt_init(esp_event_loop_handle_t loop, thingsboard_cfg_t *cfg);
+   - esp_err_t mqtt_publish(char* data, size_t data_len);
+     
+- SGP30
+   - bool sgp30_is_baseline_expired(time_t stored, time_t current): This function checks if the baseline is expired
+   - esp_err_t sgp30_measurement_log_get_mean (esp_err_t sgp30_measurement_log_get_mean): This function calculates the mean      of the measurements in the log.
+   - esp_err_t sgp30_measurement_log_enqueue(const sgp30_measurement_t *m,sgp30_measurement_log_t *q): This function              enqueues a measurement in the log.
+   - esp_err_t sgp30_measurement_log_dequeue(sgp30_measurement_t *m, sgp30_measurement_log_t *q): This function dequeues a       measurement from the log.
+   - esp_err_t sgp30_device_create(i2c_master_bus_handle_t bus_handle, const uint16_t dev_addr, const uint32_t dev_speed):       This function initializes and returns a handle for the SGP30 sensor device connected to the given I2C bus. The device       address and communication speed must be specified.
+   - esp_err_t sgp30_device_delete(i2c_master_dev_handle_t dev_handle): This function releases any resources associated         with the SGP30 device instance identified by the provided I2C master device handle.
+   - esp_err_tsgp30_init(esp_event_loop_handle_t loop, sgp30_measurement_t *baseline): This function initializes all             structures needed for the SGP30 device to function properly. It also sets the baseline value if provided.
+   - esp_err_t sgp30_start_measuring(uint32_t s): This function sets the sgp30 to begin publishing measurements on the           specified module event loop.
+   - esp_err_t sgp30_restart_measuring(uint64_t new_measurement_interval): This function restarts the measurement timer          with a new interval.
+   - esp_err_t sgp30_init_air_quality(i2c_master_dev_handle_t dev_handle): This function has to be executed once before any      measurement can be issued.
+   - esp_err_t sgp30_measure_air_quality(i2c_master_dev_handle_t dev_handle,sgp30_measurement_t *new_measurement): This 
+     function communicates with the SGP30 sensor over I2C to obtain the current eCO2 and TVOC measurements. Then posts a 
+     SENSOR_EVENT_NEW_MEASUREMENT to the sgp30_event_loop.
+   - esp_err_t sgp30_get_baseline(i2c_master_dev_handle_t dev_handle, sgp30_measurement_t *baseline): This function              communicates with the SGP30 sensor over I2C to obtain the current baseline. Then posts a SENSOR_EVENT_NEW_BASELINE to       the sgp30_event_loop.
+   - esp_err_t sgp30_set_baseline(i2c_master_dev_handle_t dev_hanlde,const sgp30_measurement_t *baseline): This function         communicates with the SGP30 sensor over I2C to set the baseline to the provided value.
+   - esp_err_t sgp30_measure_air_quality_and_post_esp_event();
+   - esp_err_t sgp30_get_baseline_and_post_esp_event();
+   - esp_err_t sgp30_set_baseline_and_post_esp_event();
+   - esp_err_t sgp30_get_id(): This function communicates with the SGP30 sensor over I2C to obtain its unique identifier.
+     
+
+- 
+   - 
+- SNTP SYNC
+- SoftAP provision
+- thingsboard
+- wifi
+- Power Manager
 
 # _Deployement_
 
