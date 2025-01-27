@@ -22,6 +22,7 @@
 #define DEFAULT_MEASURING_TIME 10
 #define DEVICE_SDA_IO_NUM 21
 #define DEVICE_SCL_IO_NUM 22
+#define PROVISIONING_SOFTAP
 
 static char *TAG = "MAIN";
 // sgp30 required structures
@@ -215,6 +216,9 @@ void app_main(void)
         .task_core_id = tskNO_AFFINITY,
     };
     esp_event_loop_create(&imc_event_loop_args, &imc_event_loop_handle);
+
+    /* Initialize the event loop */
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
 
     ESP_ERROR_CHECK(storage_init());
 

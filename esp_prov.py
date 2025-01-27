@@ -5,7 +5,9 @@
 #
 
 import argparse
+import aiofiles
 import asyncio
+import json
 import os
 import sys
 import textwrap
@@ -182,28 +184,33 @@ async def custom_data(tp, sec, custom_data):
         on_except(e)
         return None
 
-async def thingsboard_url(tp, sec, url, endpoint):
+async def thingsboard_url(tp, sec, url):
     try:
         message = prov.custom_data_request(sec, url)
-        response = await tp.send_data(endpoint, message)
+        response = await tp.send_data('thingsboard-url', message)
         return (prov.custom_data_response(sec, response) == 0)
     except RuntimeError as e:
         on_except(e)
+        return None
+    
+async def thingsboard_cnf(tp, sec, json_path):
+    try:
+        with open(json_path, mode='r') as file:
+            json_data = json.load(file) #Cargamos el contenido de json directamente
+        
+        #Creamos el mensaje con el contenido del JSON
+        message = prov.custom_data_request(sec, json_data)
+        response = await tp.send_data('thingsboard-cnf', message)
+        return (prov.custom_data_response(sec, response) == 0)
+    except RuntimeError as e:
+        on_except(e)
+        return None
+    except Exception as e:
+        print(f"Error al procesar el archivo JSON: {e}")
         return None
 
-async def thingsboard_cert(tp, sec, cert, endpoint):
-    try:
-        with open(cert, 'r') as cert_file:
-            cert_content = cert_file.read() 
-        message = prov.custom_data_request(sec, cert_content)
-        response = await tp.send_data(endpoint, message)
-        return (prov.custom_data_response(sec, response) == 0)
-    except FileNotFoundError:
-        print(f"Error: El archivo {pem_file_path} no existe.")
-        return None
-    except RuntimeError as e:
-        on_except(e)
-        return None
+
+
 
 async def scan_wifi_APs(sel_transport, tp, sec):
     APs = []
@@ -419,22 +426,11 @@ async def main():
                         help=desc_format(
                             'This is a parameter to provide the url for '
                             'thingsboard server'))
-    parser.add_argument('--thingsboard_port', dest='thingsboard_url', type=str, default='',
+    
+    parser.add_argument('--thingsboard_cnf', dest='thingsboard_cnf', type=str, default='',
                         help=desc_format(
-                            'This is a parameter to provide the port for '
-                            'thingsboard server'))
-    parser.add_argument('--thingsboard_server_cert', dest='thingsboard_cert', type=str, default='',
-                        help=desc_format(
-                            'This is a parameter to provide the server cert for '
-                            'thingsboard server'))
-    parser.add_argument('--thingsboard_device_cert', dest='thingsboard_cert', type=str, default='',
-                        help=desc_format(
-                            'This is a parameter to provide the devicekey cert for '
-                            'thingsboard server'))
-    parser.add_argument('--thingsboard_chain_cert', dest='thingsboard_cert', type=str, default='',
-                        help=desc_format(
-                            'This is a parameter to provide the chain cert for '
-                            'thingsboard server'))
+                            'This is a parameter to provide the path for '
+                            'thingsboard configuration file in json format'))
 
     parser.add_argument('--reset', help='Reset WiFi', action='store_true')
 
@@ -518,33 +514,15 @@ async def main():
 
         if args.thingsboard_url != '':
             print('\n==== Sending Thingsboard URL to Target ====')
-            if not await thingsboard_url(obj_transport, obj_security, args.thingsboard_url, 'thingsboard-url'):
+            if not await thingsboard_url(obj_transport, obj_security, args.thingsboard_url):
                 raise RuntimeError('Error in Thingsboard URL')
             print('==== Thingsboard URL sent successfully ====')
 
-        if args.thingsboard_port != '':
-            print('\n==== Sending Thingsboard port to Target ====')
-            if not await thingsboard_url(obj_transport, obj_security, args.thingsboard_port, 'thingsboard-port'):
-                raise RuntimeError('Error in Thingsboard PORT')
-            print('==== Thingsboard PORT sent successfully ====')
-
-        if args.thingsboard_server_cert != '':
-            print('\n==== Sending Thingsboard SERVER CERT to Target ====')
-            if not await thingsboard_cert(obj_transport, obj_security, args.thingsboard_server_cert, 'thingsboard-server-cert'):
-                raise RuntimeError('Error in Thingsboard SERVER CERT')
-            print('==== Thingsboard SERVER CERT sent successfully ====')
-        
-        if args.thingsboard_device_cert != '':
-            print('\n==== Sending Thingsboard DEVICE KEY CERT to Target ====')
-            if not await thingsboard_cert(obj_transport, obj_security, args.thingsboard_device_cert, 'thingsboard-device-cert'):
-                raise RuntimeError('Error in Thingsboard DEVICE KEY CERT')
-            print('==== Thingsboard DEVICE KEY CERT sent successfully ====')
-
-        if args.thingsboard_chain_cert != '':
-            print('\n==== Sending Thingsboard CHAIN CERT to Target ====')
-            if not await thingsboard_cert(obj_transport, obj_security, args.thingsboard_chain_cert, 'thingsboard-chain-cert'):
-                raise RuntimeError('Error in Thingsboard CHAIN CERT')
-            print('==== Thingsboard CHAIN CERT sent successfully ====')
+        if args.thingsboard_cnf != '':
+            print('\n==== Sending Thingsboard CONF JSON to Target ====')
+            if not await thingsboard_cnf(obj_transport, obj_security, args.thingsboard_cnf):
+                raise RuntimeError('Error in Thingsboard CONF JSON')
+            print('==== Thingsboard CONF JSON sent successfully ====')
 
         if args.ssid == '':
             if not await has_capability(obj_transport, 'wifi_scan'):

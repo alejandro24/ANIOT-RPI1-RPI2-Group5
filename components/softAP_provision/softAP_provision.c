@@ -14,6 +14,8 @@
 #include <wifi_provisioning/manager.h>
 
 #include <wifi_provisioning/scheme_softap.h>
+#include "lwip/err.h"
+#include "lwip/sys.h"
 #include "thingsboard_types.h"
 #include "softAP_provision.h"
 
@@ -136,10 +138,9 @@ esp_err_t thingsboard_url_prov_data_handler(uint32_t session_id, const uint8_t *
                                           uint8_t **outbuf, ssize_t *outlen, void *priv_data)
 {
     if (inbuf) {
-        ESP_LOGI(TAG, "Received data: %.*s", (int) inlen, (char *)inbuf);
-        provision_thingsboard_cfg.address.uri = malloc(sizeof(char)*(inlen));
+        ESP_LOGI(TAG, "Received data: %.*s", inlen, (char *)inbuf);
         //snprintf(thingsboard_url, sizeof(thingsboard_url), "%.*s", (int)inlen, (char *)inbuf);
-        strncpy(provision_thingsboard_cfg.address.uri, (char *)inbuf, (int)inlen);
+        strcpy(provision_thingsboard_cfg.address.uri, (char *)inbuf);
     }
     char response[] = "SUCCESS";
     *outbuf = (uint8_t *)strdup(response);
@@ -152,73 +153,55 @@ esp_err_t thingsboard_url_prov_data_handler(uint32_t session_id, const uint8_t *
     return ESP_OK;
 }
 
-esp_err_t thingsboard_server_cert_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen,
-                                          uint8_t **outbuf, ssize_t *outlen, void *priv_data)
-{
-    if (inbuf) {
-        ESP_LOGI(TAG, "Received data: %.*s", (int) inlen, (char *)inbuf);
-        provision_thingsboard_cfg.credentials.authentication.certificate = malloc(sizeof(char)*(inlen));
-        //snprintf(thingsboard_url, sizeof(thingsboard_url), "%.*s", (int)inlen, (char *)inbuf);
-        strncpy(provision_thingsboard_cfg.credentials.authentication.certificate, (char *)inbuf, (int)inlen);
+void delete_json(cJSON *root, cJSON *url, cJSON *port, cJSON *cert, cJSON *key, cJSON *chain){
+    cJSON_Delete(root);
+    cJSON_Delete(url);
+    cJSON_Delete(port);
+    cJSON_Delete(cert);
+    cJSON_Delete(key);
+    cJSON_Delete(chain);
+}
+
+esp_err_t parse_thingsboard_cfg(cJSON *root) {
+     if (root == NULL) {
+        ESP_LOGE(TAG, "Error parsing JSON");
+        return ESP_FAIL;
     }
-    char response[] = "SUCCESS";
-    *outbuf = (uint8_t *)strdup(response);
-    if (*outbuf == NULL) {
-        ESP_LOGE(TAG, "System out of memory");
-        return ESP_ERR_NO_MEM;
+
+    cJSON *url = cJSON_GetObjectItem(root, "url");
+    cJSON *port = cJSON_GetObjectItem(root, "port");
+    cJSON *cert = cJSON_GetObjectItem(root, "server_cert");
+    cJSON *key = cJSON_GetObjectItem(root, "device_key");
+    cJSON *chain = cJSON_GetObjectItem(root, "chain_cert");
+
+    if(url && cert && key && chain && port){
+        init_thingsboard_cfg_wifi_credentials(strlen(url->valuestring), strlen(cert->valuestring), strlen(key->valuestring), strlen(chain->valuestring));
+
+        strcpy(provision_thingsboard_cfg.address.uri, url->valuestring);
+        strcpy(provision_thingsboard_cfg.credentials.authentication.key, key->valuestring);
+        strcpy(provision_thingsboard_cfg.credentials.authentication.certificate, cert->valuestring);
+        strcpy(provision_thingsboard_cfg.verification.certificate, chain->valuestring);
+        provision_thingsboard_cfg.address.port = port->valueint;
+        delete_json(root, url, port, cert, key, chain);
     }
-    *outlen = strlen(response) + 1; /* +1 for NULL terminating byte */
+    else{
+        ESP_LOGE(TAG, "Error parsing JSON");
+        delete_json(root, url, port, cert, key, chain);
+
+        return ESP_FAIL;
+    }
 
     return ESP_OK;
 }
 
-esp_err_t thingsboard_device_cert_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen,
+esp_err_t thingsboard_cnf_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen,
                                           uint8_t **outbuf, ssize_t *outlen, void *priv_data)
 {
     if (inbuf) {
-        ESP_LOGI(TAG, "Received data: %.*s", (int) inlen, (char *)inbuf);
-        provision_thingsboard_cfg.credentials.authentication.key = malloc(sizeof(char)*(inlen));
-        //snprintf(thingsboard_url, sizeof(thingsboard_url), "%.*s", (int)inlen, (char *)inbuf);
-        strncpy(provision_thingsboard_cfg.credentials.authentication.key, (char *)inbuf, (int)inlen);
-    }
-    char response[] = "SUCCESS";
-    *outbuf = (uint8_t *)strdup(response);
-    if (*outbuf == NULL) {
-        ESP_LOGE(TAG, "System out of memory");
-        return ESP_ERR_NO_MEM;
-    }
-    *outlen = strlen(response) + 1; /* +1 for NULL terminating byte */
-
-    return ESP_OK;
-}
-
-esp_err_t thingsboard_chain_cert_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen,
-                                          uint8_t **outbuf, ssize_t *outlen, void *priv_data)
-{
-    if (inbuf) {
-        ESP_LOGI(TAG, "Received data: %.*s", (int) inlen, (char *)inbuf);
-        provision_thingsboard_cfg.verification.certificate = malloc(sizeof(char)*(inlen));
-        //snprintf(thingsboard_url, sizeof(thingsboard_url), "%.*s", (int)inlen, (char *)inbuf);
-        strncpy(provision_thingsboard_cfg.verification.certificate, (char *)inbuf, (int)inlen);
-    }
-    char response[] = "SUCCESS";
-    *outbuf = (uint8_t *)strdup(response);
-    if (*outbuf == NULL) {
-        ESP_LOGE(TAG, "System out of memory");
-        return ESP_ERR_NO_MEM;
-    }
-    *outlen = strlen(response) + 1; /* +1 for NULL terminating byte */
-
-    return ESP_OK;
-}
-
-esp_err_t thingsboard_port_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen,
-                                          uint8_t **outbuf, ssize_t *outlen, void *priv_data)
-{
-    if (inbuf) {
-        ESP_LOGI(TAG, "Received data: %.*s", (int) inlen, (char *)inbuf);
-        //snprintf(thingsboard_url, sizeof(thingsboard_url), "%.*s", (int)inlen, (char *)inbuf);
-        provision_thingsboard_cfg.address.port = atoi((char *)inbuf);
+        ESP_LOGI(TAG, "Received data: %.*s", inlen, (char *)inbuf);
+        // Parsear el JSON recibido
+        cJSON *root = cJSON_Parse((char *)inbuf);
+        ESP_ERROR_CHECK(parse_thingsboard_cfg(root));
     }
     char response[] = "SUCCESS";
     *outbuf = (uint8_t *)strdup(response);
@@ -256,7 +239,7 @@ esp_err_t softAP_provision_init(thingsboard_cfg_t *thingsboard_cfg, wifi_credent
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_RETURN_ON_ERROR(esp_wifi_init(&cfg), TAG, "Error iniciando la configuracion Wifi");
 
-    if(thingsboard_cfg == NULL || wifi_credentials == NULL){
+    if(thingsboard_cfg == NULL || wifi_credentials == NULL){ 
         /* Configuration for the provisioning manager */
         wifi_prov_mgr_config_t config = {
             .scheme = wifi_prov_scheme_softap,
@@ -269,7 +252,7 @@ esp_err_t softAP_provision_init(thingsboard_cfg_t *thingsboard_cfg, wifi_credent
         ESP_RETURN_ON_ERROR(wifi_prov_mgr_init(config),TAG, "Fallo iniciando el provisionamiento");
         
         char service_name[12];
-        get_device_service_name(service_name, sizeof(service_name));
+        get_device_service_name(service_name, sizeof(service_name));   
 
     #ifdef CONFIG_EXAMPLE_PROV_SECURITY_VERSION_1
             /* What is the security level that we want (1, 2):
@@ -298,20 +281,6 @@ esp_err_t softAP_provision_init(thingsboard_cfg_t *thingsboard_cfg, wifi_credent
     #elif CONFIG_EXAMPLE_PROV_SECURITY_VERSION_2
             wifi_prov_security_t security = WIFI_PROV_SECURITY_2;
             /* The username must be the same one, which has been used in the generation of salt and verifier */
-
-    #if CONFIG_EXAMPLE_PROV_SEC2_DEV_MODE
-            /* This pop field represents the password that will be used to generate salt and verifier.
-            * The field is present here in order to generate the QR code containing password.
-            * In production this password field shall not be stored on the device */
-            const char *username  = EXAMPLE_PROV_SEC2_USERNAME;
-            const char *pop = EXAMPLE_PROV_SEC2_PWD;
-    #elif CONFIG_EXAMPLE_PROV_SEC2_PROD_MODE
-            /* The username and password shall not be embedded in the firmware,
-            * they should be provided to the user by other means.
-            * e.g. QR code sticker */
-            const char *username  = NULL;
-            const char *pop = NULL;
-    #endif
             /* This is the structure for passing security parameters
             * for the protocomm security 2.
             * If dynamically allocated, sec2_params pointer and its content
@@ -337,11 +306,7 @@ esp_err_t softAP_provision_init(thingsboard_cfg_t *thingsboard_cfg, wifi_credent
         *thingsboard url.
         * This call must be made before starting the provisioning.
         */
-        wifi_prov_mgr_endpoint_create("thingsboard-url");
-        wifi_prov_mgr_endpoint_create("thingsboard-port");
-        wifi_prov_mgr_endpoint_create("thingsboard-server-cert");
-        wifi_prov_mgr_endpoint_create("thingsboard-device-cert");
-        wifi_prov_mgr_endpoint_create("thingsboard-chain-cert");
+        wifi_prov_mgr_endpoint_create("thingsboard-cnf");
 
         /* Start provisioning service */
         ESP_RETURN_ON_ERROR(wifi_prov_mgr_start_provisioning(security, (const void *) sec_params, service_name, service_key), TAG, "Fallo al empezar el provisionamiento");
@@ -350,11 +315,7 @@ esp_err_t softAP_provision_init(thingsboard_cfg_t *thingsboard_cfg, wifi_credent
         * This call must be made after starting the provisioning, and only if the endpoint
         * has already been created above.
         */
-        wifi_prov_mgr_endpoint_register("thingsboard-url", thingsboard_url_prov_data_handler, NULL);
-        wifi_prov_mgr_endpoint_register("thingsboard-port", thingsboard_port_prov_data_handler, NULL);
-        wifi_prov_mgr_endpoint_register("thingsboard-server-cert", thingsboard_server_cert_prov_data_handler, NULL);
-        wifi_prov_mgr_endpoint_register("thingsboard-device-cert", thingsboard_device_cert_prov_data_handler, NULL);
-        wifi_prov_mgr_endpoint_register("thingsboard-chain-cert", thingsboard_chain_cert_prov_data_handler, NULL);
+        wifi_prov_mgr_endpoint_register("thingsboard-cnf", thingsboard_cnf_prov_data_handler, NULL);
 
         if(xSemaphoreTake(is_provisioned, portMAX_DELAY) != pdTRUE) {
             ESP_LOGE(TAG, "Provisioning failed");
