@@ -6,8 +6,6 @@ It has been developed by the following IOT Master students:
 - Jaime Garzón
 - Diego Pellicer
 
-
-
 # _Sample project_
 
 (See the README.md file in the upper level 'examples' directory for more information about examples.)
@@ -16,10 +14,11 @@ This is the simplest buildable example. The example is used by command `idf.py c
 that copies the project to user specified path and set it's name. For more information follow the [docs page](https://docs.espressif.com/projects/esp-idf/en/latest/api-guides/build-system.html#start-a-new-project)
 
 ## Prerequisites
-hardware:
+Hardware:
 ESP32 development board. the firmware ESP32-WROOM-32 has been used for developing the system.
 Air quality sensor. We have used the SGP30 sensor to measure CO2 levels (please refer to datasheet ![image](https://github.com/user-attachments/assets/487a4db2-32e9-4cf4-b931-e7d86eef890f)).
 USB cable for flashing firmware.
+
 Software:
 ESP-IDF v5.x or later.
 Python 3.8+
@@ -35,10 +34,12 @@ A GitHub repository has been created to follow a collaborative working model. Ad
 # _Design_
 Once objectives and mandatory and optinal requirements have been analysed by the team, an initial system definition was performed. It includes workflow diagram and component definition. 
 
-## Workflow diagram
-We have defined the following initial workflow diagram for our Air quality evaluation system.
+## Workflow diagram and initial approach
+We have defined the following initial workflow diagram for our Air quality evaluation system. 
 
-Turning our system on has been considered the starting point for our workflow diagram programme to develop.
+![ProyectoFinal-Group5-Workflow_Diagram](https://github.com/user-attachments/assets/e4f287a2-2356-40ed-9cbb-9bcfc61d35d1)
+
+"Turning our system on" state has been considered as the starting point for our workflow diagram programme to develop.
 
 We considered four cases to consider in our main procedure:
 1. First running case. We have just started with our programme.
@@ -64,12 +65,17 @@ Entering disconnected mode status. Our programme will run and get air quality me
 
 Once one measurement has been completed, we will check if WiFi is connected. If yes, we will calculate the average value of the MINUTES buffer and follow the "Successful Connection" case from Connection to ThingsBoard status. If no, we will then check what time it is and come back to disconnected mode status if it’s earlier than 10 pm and repeat the process just explained or calculate the average value of the HOURS buffer, save it in NVS and enter "deep sleep" mode, which will keep until the next day at 8 am. Then, our system will wake up and enter case 2: waking up from "deep sleep" mode.
 
+## Workflow evolution
+Once further analysis and research has been done, we evolved and updated the initial workflow diagram as follows:
+- HOUR buffer to keep the average value for last hour measures has been removed as the total memory consumption of just having MINUTES buffer is manageable.
+- 
+ 
 
-![ProyectoFinal-Group5-Workflow_Diagram](https://github.com/user-attachments/assets/e4f287a2-2356-40ed-9cbb-9bcfc61d35d1)
+
 
 ## Components
 The following components have been considered and deployed for this system:
-- MQTT controller:
+- **MQTT controller**:
    - void received_data(cJSON *root, char* topic, size_t len): Function to work with the data received from the subscribed topics.
    - bool is_provision(cJSON *root, char* topic, size_t len): Function to check if the device is being provision with his access token in this case the access token is store.
    - void log_error_if_nonzero(const char *message, int error_code):
@@ -78,7 +84,7 @@ The following components have been considered and deployed for this system:
    - esp_err_t mqtt_init(esp_event_loop_handle_t loop, thingsboard_cfg_t *cfg);
    - esp_err_t mqtt_publish(char* data, size_t data_len);
      
-- SGP30
+- **SGP30**
    - bool sgp30_is_baseline_expired(time_t stored, time_t current): This function checks if the baseline is expired
    - esp_err_t sgp30_measurement_log_get_mean (esp_err_t sgp30_measurement_log_get_mean): This function calculates the mean      of the measurements in the log.
    - esp_err_t sgp30_measurement_log_enqueue(const sgp30_measurement_t *m,sgp30_measurement_log_t *q): This function              enqueues a measurement in the log.
@@ -98,15 +104,34 @@ The following components have been considered and deployed for this system:
    - esp_err_t sgp30_get_baseline_and_post_esp_event();
    - esp_err_t sgp30_set_baseline_and_post_esp_event();
    - esp_err_t sgp30_get_id(): This function communicates with the SGP30 sensor over I2C to obtain its unique identifier.
+      
+- **SNTP SYNC**
+   - void sntp_sync_time(struct timeval *tv);
+   - void time_sync_notification_cb(struct timeval *tv);
+   - static void print_servers(void);
+   - static void obtain_time(void);
+   -  
+- **SoftAP provision**
+   - esp_err_t example_get_sec2_salt(const char **salt, uint16_t *salt_len);
+   - esp_err_t example_get_sec2_verifier(const char **verifier, uint16_t *verifier_len);
+   - void provision_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
+   - void wifi_init_sta(void);
+   - void get_device_service_name(char *service_name, size_t max);
+   - esp_err_t thingsboard_url_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen, uint8_t               **outbuf, ssize_t *outlen, void *priv_data);
+   - void wifi_prov_print_qr(const char *name, const char *username, const char *pop, const char *transport);
+   - esp_err_t parse_thingsboard_cfg(cJSON *root);
+   - thingsboard_cfg_t get_thingsboard_cfg();
+   - wifi_credentials_t get_wifi_credentials();
+   - esp_err_t softAP_provision_init(thingsboard_cfg_t *thingsboard_cfg, wifi_credentials_t *wifi_credentials);
      
-
-- 
-   - 
-- SNTP SYNC
-- SoftAP provision
-- thingsboard
-- wifi
-- Power Manager
+- **thingsboard**
+- **wifi**
+- **Power Manager**
+   -  ESP_EVENT_DECLARE_BASE(POWER_MANAGER_EVENT);
+   -  void power_manager_init();
+   -  esp_err_t power_manager_set_sntp_time(struct tm *timeinfo);
+   -  void power_manager_enter_deep_sleep();
+   -  void power_manager_deinit();
 
 # _Deployement_
 
