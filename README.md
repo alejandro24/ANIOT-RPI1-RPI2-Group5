@@ -53,7 +53,7 @@ Once the provisioning phase has been completed by our programme, we evaluate if 
 
 Provisioning and NVS checking done, what’s next? Time to connect to the WiFi network:
 
-Successful Connection
+### Successful Connection
 ------------------
 Our system is connected to the provided WiFi network. Then, we get the related time by connecting to the SNTP server and move to connect to the ThingsBoard dashboard. Once the connection has been established correctly, we get data saved previously in our NVS and send it to the ThingsBoard dashboard. We take a new air quality measurement and if it has been done correctly and it is not 10 pm yet, we check if WiFi is still connected. If so, we take the air quality measurement again. If not, we will be in the failed connection case and go to disconnected mode, described below.
 
