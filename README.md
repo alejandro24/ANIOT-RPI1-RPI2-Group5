@@ -59,7 +59,7 @@ Our system is connected to the provided WiFi network. Then, we get the related t
 
 Once 10 pm is reached out, we will enter in "deep sleep" mode until next day at 8 am.
 
-Failed connection
+### Failed connection
 ------------------
 Entering disconnected mode status. Our programme will run and get air quality measures in offline mode until the connection is established/re-established. We have considered air measures every 10 minutes as an initial approach. If the air quality measurement was correct, we will store the value in a temporary buffer called MINUTES buffer. It will be used to save measurements done every 10 minutes. Additionally, we will have a second buffer called HOURS buffer to save the average value of each hour and will be used later as we will describe below. The MINUTES buffer will be reset every 60 minutes to avoid wrong values. The first measurement taken will be saved simultaneously in MINUTES and HOURS buffers as the WiFi connection could reconnect in less than one complete hour.
 
