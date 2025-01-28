@@ -52,6 +52,18 @@ esp_err_t example_get_sec2_verifier(const char **verifier, uint16_t *verifier_le
 }
 #endif
 
+void event_handler_got_ip(
+    void *arg,
+    esp_event_base_t event_base,
+    int32_t event_id,
+    void *event_data
+)
+{
+    ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
+    ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
+    xSemaphoreGive(is_provisioned);
+}
+
 void provision_event_handler(void* arg, esp_event_base_t event_base,
                           int32_t event_id, void* event_data)
 {
@@ -145,28 +157,36 @@ esp_err_t thingsboard_cnf_prov_data_handler(uint32_t session_id, const uint8_t *
                                           uint8_t **outbuf, ssize_t *outlen, void *priv_data)
 {
     if (inbuf) {
-        ESP_LOGI(TAG, "Received data: %.*s", inlen, (char *)inbuf);
         if(data_to_receive == 0){
             provision_thingsboard_cfg.address.uri = malloc(sizeof(char) * inlen);
             strncpy(provision_thingsboard_cfg.address.uri, (char*) inbuf, inlen);
+            provision_thingsboard_cfg.address.uri[inlen] = '\0';
+            ESP_LOGI(TAG, "%s", provision_thingsboard_cfg.address.uri);
         }
         else if(data_to_receive == 1){
             provision_thingsboard_cfg.address.port = atoi((char*) inbuf);
+            ESP_LOGI(TAG, "%d", provision_thingsboard_cfg.address.port);
         }
         else if(data_to_receive == 2){
             provision_thingsboard_cfg.verification.certificate_len = inlen;
             provision_thingsboard_cfg.verification.certificate = malloc(sizeof(char) * inlen);
             strncpy(provision_thingsboard_cfg.verification.certificate, (char*) inbuf, inlen);
+            provision_thingsboard_cfg.verification.certificate[inlen] = '\0';
+            ESP_LOGI(TAG, "%s", provision_thingsboard_cfg.verification.certificate);
         }
         else if(data_to_receive == 3){
             provision_thingsboard_cfg.credentials.authentication.certificate_len = inlen;
             provision_thingsboard_cfg.credentials.authentication.certificate = malloc(sizeof(char) * inlen);
             strncpy(provision_thingsboard_cfg.credentials.authentication.certificate, (char*) inbuf, inlen);
+            provision_thingsboard_cfg.credentials.authentication.certificate[inlen] = '\0';
+            ESP_LOGI(TAG, "%s", provision_thingsboard_cfg.credentials.authentication.certificate);
         }
         else if(data_to_receive == 4){
             provision_thingsboard_cfg.credentials.authentication.key_len = inlen;
             provision_thingsboard_cfg.credentials.authentication.key = malloc(sizeof(char) * inlen);
             strncpy(provision_thingsboard_cfg.credentials.authentication.key, (char*) inbuf, inlen);
+            provision_thingsboard_cfg.credentials.authentication.key[inlen] = '\0';
+            ESP_LOGI(TAG, "%s", provision_thingsboard_cfg.credentials.authentication.key);
         }
         else {
             return ESP_FAIL;
@@ -204,6 +224,7 @@ esp_err_t softAP_provision_init(thingsboard_cfg_t *thingsboard_cfg, wifi_credent
 
     ESP_RETURN_ON_ERROR(esp_event_handler_register(WIFI_PROV_EVENT, ESP_EVENT_ANY_ID, &provision_event_handler, NULL), TAG, "Fallo en creacion del handler");
     ESP_RETURN_ON_ERROR(esp_event_handler_register(PROTOCOMM_SECURITY_SESSION_EVENT, ESP_EVENT_ANY_ID, &provision_event_handler, NULL), TAG, "Fallo en creacion del handler");
+    esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, event_handler_got_ip, NULL);
 
     /* Initialize Wi-Fi including netif with default config */
     esp_netif_create_default_wifi_sta();
@@ -309,6 +330,10 @@ esp_err_t softAP_provision_init(thingsboard_cfg_t *thingsboard_cfg, wifi_credent
         ESP_ERROR_CHECK(esp_wifi_start());
 
         ESP_LOGI(TAG, "wifi_init_sta finished.");
+
+        if(xSemaphoreTake(is_provisioned, portMAX_DELAY) != pdTRUE) {
+            ESP_LOGE(TAG, "Provisioning failed");
+        }
     }
 
     return ESP_OK;

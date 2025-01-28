@@ -83,20 +83,6 @@ static void wifi_event_handler(
     }
 }
 
-static void event_handler_got_ip(
-    void *arg,
-    esp_event_base_t event_base,
-    int32_t event_id,
-    void *event_data
-)
-{
-    ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
-    ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
-
-    mqtt_init(imc_event_loop_handle, &thingsboard_cfg);
-    sgp30_start_measuring(DEFAULT_MEASURING_TIME);
-}
-
 static void sgp30_on_new_measurement(
     void *handler_args,
     esp_event_base_t base,
@@ -225,7 +211,7 @@ void app_main(void)
     /* Initialize the event loop */
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event_handler, NULL);
-    esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, event_handler_got_ip, NULL);
+    //esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, event_handler_got_ip, NULL);
 
     ESP_ERROR_CHECK(storage_init());
 
@@ -277,6 +263,8 @@ void app_main(void)
         wifi_credentials = get_wifi_credentials();
         storage_set((const thingsboard_cfg_t*) &thingsboard_cfg);
         storage_set((const wifi_credentials_t*) &wifi_credentials);
+        ESP_LOGI(TAG, "%s", thingsboard_cfg.address.uri);
+        ESP_LOGI(TAG, "%s", thingsboard_cfg.verification.certificate);
         #else
         ESP_LOGE(TAG, "Device not provisioned");
         #endif
@@ -286,6 +274,7 @@ void app_main(void)
         ESP_LOGI(TAG, "Device provisioned");
         ESP_ERROR_CHECK(softAP_provision_init(&thingsboard_cfg, &wifi_credentials));
     }
+
 
     // At this point a valid time is required
     // We start the sensor
@@ -304,4 +293,7 @@ void app_main(void)
     // (atributo compartido creo) Se inicia solo al mandar un evento
     // SGP30_EVENT_NEW_INTERVAL
     #endif
+
+    mqtt_init(imc_event_loop_handle, &thingsboard_cfg);
+    sgp30_start_measuring(DEFAULT_MEASURING_TIME);
 }

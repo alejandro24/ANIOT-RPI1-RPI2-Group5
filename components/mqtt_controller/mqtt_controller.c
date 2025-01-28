@@ -321,7 +321,7 @@ esp_err_t mqtt_init(
     thingsboard_cfg_t *cfg
 ) {
     event_loop = loop;
-
+    ESP_LOGI(TAG, "Iniciando MQTT, %s", (const char*) cfg->verification.certificate);
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker.address.hostname = cfg->address.uri,
         .broker.address.port = cfg->address.port,

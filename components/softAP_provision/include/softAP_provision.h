@@ -62,6 +62,9 @@ esp_err_t example_get_sec2_salt(const char **salt, uint16_t *salt_len);
 esp_err_t example_get_sec2_verifier(const char **verifier, uint16_t *verifier_len);
 #endif
 
+void event_handler_got_ip(void *arg, esp_event_base_t event_base, 
+                        int32_t event_id, void *event_data);
+
 void provision_event_handler(void* arg, esp_event_base_t event_base,
                           int32_t event_id, void* event_data);
 
