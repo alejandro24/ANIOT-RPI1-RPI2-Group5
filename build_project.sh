@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 docstring='This script builds and flashes an ESP32 project.
 
  Usage:
@@ -57,4 +58,5 @@ esptool.py \
   0x1000 build/bootloader/bootloader.bin \
   0x8000 build/partition_table/partition-table.bin \
   0x9000 build/certs.bin
+
 
