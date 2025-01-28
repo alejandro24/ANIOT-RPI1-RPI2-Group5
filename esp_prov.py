@@ -5,7 +5,6 @@
 #
 
 import argparse
-import aiofiles
 import asyncio
 import json
 import os
@@ -186,29 +185,52 @@ async def custom_data(tp, sec, custom_data):
 
 async def thingsboard_url(tp, sec, url):
     try:
+        data_to_receive = prov.custom_data_request(sec, '0')
+        response = await tp.send_data('data-to-receive', data_to_receive)
+        message = prov.custom_data_request(sec, url)
+        response = await tp.send_data('thingsboard-cnf', message)
+        return (prov.custom_data_response(sec, response) == 0)
+    except RuntimeError as e:
+        on_except(e)
+        return None
+
+async def thingsboard_port(tp, sec, url):
+    try:
+        data_to_receive = prov.custom_data_request(sec, '1')
+        response = await tp.send_data('data-to-receive', data_to_receive)
         message = prov.custom_data_request(sec, url)
         response = await tp.send_data('thingsboard-url', message)
         return (prov.custom_data_response(sec, response) == 0)
     except RuntimeError as e:
         on_except(e)
         return None
-    
-async def thingsboard_cnf(tp, sec, json_path):
+
+async def thingsboard_cnf(tp, sec, file_path):
     try:
-        with open(json_path, mode='r') as file:
-            json_data = json.load(file) #Cargamos el contenido de json directamente
+        # Verificar que el archivo exista
+        if not os.path.isfile(file_path):
+            raise FileNotFoundError(f"El archivo '{file_path}' no existe.")
         
-        #Creamos el mensaje con el contenido del JSON
-        message = prov.custom_data_request(sec, json_data)
+        # Abrir y leer el contenido del archivo
+        with open(file_path, 'r') as file:
+            file_content = file.read()
+        
+        # Preparar el mensaje usando el contenido del archivo
+        message = prov.custom_data_request(sec, file_content)
+        # Enviar los datos al endpoint 'thingsboard-cnf'
         response = await tp.send_data('thingsboard-cnf', message)
+        
+        # Validar la respuesta
         return (prov.custom_data_response(sec, response) == 0)
+    except FileNotFoundError as fnfe:
+        print(f"Error: {fnfe}")
+        return None
     except RuntimeError as e:
         on_except(e)
         return None
-    except Exception as e:
-        print(f"Error al procesar el archivo JSON: {e}")
+    except Exception as ex:
+        print(f"Error inesperado: {ex}")
         return None
-
 
 
 
@@ -426,11 +448,11 @@ async def main():
                         help=desc_format(
                             'This is a parameter to provide the url for '
                             'thingsboard server'))
-    
+
     parser.add_argument('--thingsboard_cnf', dest='thingsboard_cnf', type=str, default='',
                         help=desc_format(
-                            'This is a parameter to provide the path for '
-                            'thingsboard configuration file in json format'))
+                            'This is a parameter to provide the conf for '
+                            'thingsboard server'))
 
     parser.add_argument('--reset', help='Reset WiFi', action='store_true')
 
@@ -519,10 +541,10 @@ async def main():
             print('==== Thingsboard URL sent successfully ====')
 
         if args.thingsboard_cnf != '':
-            print('\n==== Sending Thingsboard CONF JSON to Target ====')
+            print('\n==== Sending Thingsboard URL to Target ====')
             if not await thingsboard_cnf(obj_transport, obj_security, args.thingsboard_cnf):
-                raise RuntimeError('Error in Thingsboard CONF JSON')
-            print('==== Thingsboard CONF JSON sent successfully ====')
+                raise RuntimeError('Error in Thingsboard CNF')
+            print('==== Thingsboard CNF sent successfully ====')
 
         if args.ssid == '':
             if not await has_capability(obj_transport, 'wifi_scan'):
