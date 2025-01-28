@@ -159,7 +159,7 @@ static esp_err_t nvs_get_thingsboard_cfg(thingsboard_cfg_t *cfg)
     cfg->verification.certificate = ca_cert;
     cfg->verification.certificate_len = ca_cert_len + 1;
     cfg->credentials.authentication.certificate = chain_cert;
-    cfg->credentials.authentication.certificate_len = chain_cert + 1;
+    cfg->credentials.authentication.certificate_len = chain_cert_len + 1;
     cfg->credentials.authentication.key = dev_cert;
     cfg->credentials.authentication.key_len = dev_cert_len + 1;
 
