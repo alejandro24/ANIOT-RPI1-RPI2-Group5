@@ -11,6 +11,7 @@
 
 #include "esp_log.h"
 #include "esp_check.h"
+#include "mbedtls/x509_crt.h"
 #include "mqtt_client.h"
 #include "portmacro.h"
 #include "mqtt_controller.h"
@@ -323,11 +324,15 @@ esp_err_t mqtt_init(
         .broker.address.hostname = cfg->address.uri,
         .broker.address.port = cfg->address.port,
         .broker.address.transport = MQTT_TRANSPORT_OVER_SSL,
-        .broker.verification.certificate = cfg->verification.certificate,
+        .broker.verification.certificate = (const char*) cfg->verification.certificate,
+        .broker.verification.certificate_len = cfg->verification.certificate_len,
+        .broker.verification.skip_cert_common_name_check = true,
         .credentials.authentication.certificate =
-            cfg->credentials.authentication.certificate,
+            (const char*) cfg->credentials.authentication.certificate,
+        .credentials.authentication.certificate_len = cfg->credentials.authentication.certificate_len,
         .credentials.authentication.key =
-            cfg->credentials.authentication.key,
+            (const char*) cfg->credentials.authentication.key,
+        .credentials.authentication.key_len = cfg->credentials.authentication.key_len
     };
 
     client = esp_mqtt_client_init(&mqtt_cfg);
@@ -374,6 +379,8 @@ esp_err_t mqtt_publish(
     );
     if (msg_id < 0) {
         return ESP_FAIL;
+    } else {
+        ESP_LOGI(TAG, "Telemetry sent:\n%.*s",(int) data_len, data);
+        return ESP_OK;
     }
-    return ESP_OK;
 }

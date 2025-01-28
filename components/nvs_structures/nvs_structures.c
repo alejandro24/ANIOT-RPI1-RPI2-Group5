@@ -20,7 +20,6 @@
 #define NVS_THINGSBOARD_CHAINCERT_KEY  "chain_cert"
 
 #define TAG "NVS"
-static nvs_handle_t storage_handle;
 
 static esp_err_t nvs_get_thingsboard_cfg(thingsboard_cfg_t *cfg)
 {
@@ -72,7 +71,7 @@ static esp_err_t nvs_get_thingsboard_cfg(thingsboard_cfg_t *cfg)
         ESP_LOGE(TAG, "Could not get thingsboard ca certificate length");
         return ESP_FAIL;
     }
-    char *ca_cert = malloc(ca_cert_len);
+    char *ca_cert = calloc(1, ca_cert_len + 1);
     if (nvs_get_str(
             storage_handle,
             NVS_THINGSBOARD_CACERT_KEY,
@@ -103,7 +102,7 @@ static esp_err_t nvs_get_thingsboard_cfg(thingsboard_cfg_t *cfg)
         ESP_LOGE(TAG, "Could not get thingsboard device certificate length");
         return ESP_FAIL;
     }
-    char *dev_cert = malloc(dev_cert_len);
+    char *dev_cert = calloc(1, dev_cert_len + 1);
     if (nvs_get_str(
             storage_handle,
             NVS_THINGSBOARD_DEVCERT_KEY,
@@ -135,7 +134,7 @@ static esp_err_t nvs_get_thingsboard_cfg(thingsboard_cfg_t *cfg)
         ESP_LOGE(TAG, "Could not get thingsboard chain certificate length");
         return ESP_FAIL;
     }
-    char *chain_cert = malloc(chain_cert_len);
+    char *chain_cert = calloc(1, chain_cert_len + 1);
     if (nvs_get_str(
             storage_handle,
             NVS_THINGSBOARD_CHAINCERT_KEY,
@@ -158,8 +157,11 @@ static esp_err_t nvs_get_thingsboard_cfg(thingsboard_cfg_t *cfg)
     cfg->address.uri = uri;
     cfg->address.port = port;
     cfg->verification.certificate = ca_cert;
-    cfg->credentials.authentication.certificate = dev_cert;
-    cfg->credentials.authentication.key = chain_cert;
+    cfg->verification.certificate_len = ca_cert_len + 1;
+    cfg->credentials.authentication.certificate = chain_cert;
+    cfg->credentials.authentication.certificate_len = chain_cert + 1;
+    cfg->credentials.authentication.key = dev_cert;
+    cfg->credentials.authentication.key_len = dev_cert_len + 1;
 
     return ESP_OK;
 }

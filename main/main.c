@@ -1,3 +1,4 @@
+#include "cJSON.h"
 #include "driver/i2c_master.h"
 #include "driver/i2c_types.h"
 #include "esp_check.h"
@@ -16,6 +17,7 @@
 #include "thingsboard_types.h"
 #include <esp_wifi.h>
 #include <string.h>
+#include "mbedtls/x509_crt.h"
 
 #include "esp_log.h"
 
@@ -34,6 +36,7 @@ uint16_t send_time = 30;
 thingsboard_cfg_t thingsboard_cfg;
 wifi_credentials_t wifi_credentials;
 
+char *prepare_meassure_send(long ts, sgp30_measurement_t measurement);
 // wifi handler to take actions for the different wifi events
 static void wifi_event_handler(
     void *arg,
@@ -91,6 +94,7 @@ static void event_handler_got_ip(
     ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
 
     mqtt_init(imc_event_loop_handle, &thingsboard_cfg);
+    sgp30_start_measuring(DEFAULT_MEASURING_TIME);
 }
 
 static void sgp30_on_new_measurement(
@@ -106,14 +110,13 @@ static void sgp30_on_new_measurement(
     new_log_entry.measurement = *((sgp30_measurement_t *)event_data);
     ESP_LOGI(
         TAG,
-        "Measured eCO2= %d TVOC= %d",
+        "To send:\n\tMeasured eCO2= %d TVOC= %d",
         new_log_entry.measurement.eCO2,
         new_log_entry.measurement.TVOC
     );
     // sgp30_measurement_enqueue(&new_log_entry, &sgp30_log);
-    // char[400] measurement_JSON_repr;
-    // sgp30_measurement_to_JSON(&new_log_entry.measurement,
-    // &measurement_JSON_rep) mqtt_publish(measurement_JSON_repr);
+    char* measurement_JSON_repr = prepare_meassure_send(new_log_entry.time, new_log_entry.measurement);
+    mqtt_publish(measurement_JSON_repr, strlen(measurement_JSON_repr));
     //  Send or store log_entry
 }
 
@@ -187,10 +190,9 @@ char *prepare_meassure_send(long ts, sgp30_measurement_t measurement)
     cJSON_AddNumberToObject(measurement_json, "eCO2", measurement.eCO2);
     cJSON_AddNumberToObject(measurement_json, "TVOC", measurement.TVOC);
     cJSON_AddItemToObjectCS(json_data, "values", measurement_json);
-    data_to_send = cJSON_Print(json_data);
+    data_to_send = cJSON_PrintUnformatted(json_data);
 
     cJSON_Delete(json_data);
-    cJSON_Delete(measurement_json);
     return data_to_send;
 }
 
@@ -201,7 +203,10 @@ void app_main(void)
     ESP_LOGI(TAG, "Starting NVS debugging");
     ESP_ERROR_CHECK(storage_init());
     storage_get(&thingsboard_cfg);
-    ESP_LOGI(TAG, "Thingsboard URI: \n\t%s\n Thingsboard Port: \n\t%d\n Thingsboard Device Certificate: \n\t%s\n Thingsboard Chain Certificate: \n\t%s\n Thingsboard CA Certificate: \n\t%s", thingsboard_cfg.address.uri, thingsboard_cfg.address.port, thingsboard_cfg.credentials.authentication.certificate, thingsboard_cfg.credentials.authentication.key, thingsboard_cfg.verification.certificate);
+    mbedtls_x509_crt ca_cert;
+    mbedtls_x509_crt_init(&ca_cert);
+    ESP_LOGI(TAG, "CA VERIFICATION OUTPUT %d", mbedtls_x509_crt_parse(&ca_cert, (const unsigned char *) thingsboard_cfg.verification.certificate, strlen(thingsboard_cfg.verification.certificate) + 1));
+    ESP_LOGI(TAG, "CHAIN VERIFICATION OUTPUT %d", mbedtls_x509_crt_parse(&ca_cert, (const unsigned char *) thingsboard_cfg.credentials.authentication.certificate, strlen(thingsboard_cfg.credentials.authentication.certificate) + 1));
     storage_get(&wifi_credentials);
     ESP_LOGI(TAG, "Wifi SSID: \n\t%s\n Wifi Password: \n\t%s", wifi_credentials.ssid, wifi_credentials.password);
     #else
@@ -219,6 +224,8 @@ void app_main(void)
 
     /* Initialize the event loop */
     ESP_ERROR_CHECK(esp_event_loop_create_default());
+    esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event_handler, NULL);
+    esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, event_handler_got_ip, NULL);
 
     ESP_ERROR_CHECK(storage_init());
 
@@ -240,7 +247,6 @@ void app_main(void)
             )
         );
     }
-
 
     // Set up event listeenr for MQTT module
     ESP_ERROR_CHECK(
@@ -297,8 +303,5 @@ void app_main(void)
     // Esto debería de iniciarse al tener un valor del intervalo, por MQTT
     // (atributo compartido creo) Se inicia solo al mandar un evento
     // SGP30_EVENT_NEW_INTERVAL
-    mqtt_init(imc_event_loop_handle, &thingsboard_cfg);
-
-    sgp30_start_measuring(DEFAULT_MEASURING_TIME);
     #endif
 }

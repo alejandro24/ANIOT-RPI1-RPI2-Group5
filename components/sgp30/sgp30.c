@@ -16,6 +16,7 @@
 
 ESP_EVENT_DEFINE_BASE (SGP30_EVENT);
 
+#define MEASURE_IN_FIRST_BASELINE_WAIT_TIME
 #define SGP30_MEASURING_INTERVAL       (1000 * 1000) // Measure each second
 #define SGP30_BASELINE_VALIDITY_TIME   (7 * 24 * 60)
 #define SGP30_BASELINE_UPDATE_INTERVAL (30 * 1000000)
@@ -35,7 +36,7 @@ static uint16_t id[3];
 
 static void sgp30_request_measurement_callback ()
 {
-    ESP_LOGI (TAG, "Requested measurement");
+    ESP_LOGI(TAG, "Requested measurement");
     xSemaphoreGive (sgp30_measurement_requested);
 }
 
@@ -138,6 +139,10 @@ static void sgp30_operation_task (
                     sgp30_dev_handle,
                     &last_measurement
                 );
+                sgp30_measurement_log_enqueue(
+                    &last_measurement,
+                    &measurement_log
+                );
                 ESP_LOGI (
                     TAG,
                     "Measured: eC02: %" PRIu16 "\tTVOC: %" PRIu16 "",
@@ -154,14 +159,20 @@ static void sgp30_operation_task (
                 if (xSemaphoreTake (sgp30_measurement_requested, 0) == pdTRUE)
                 {
                     sgp30_measurement_t mean;
-                    sgp30_measurement_log_mean (&mean, &measurement_log);
+                    sgp30_measurement_log_get_mean(&mean, &measurement_log);
                     ESP_LOGI (TAG, "Request Received");
+                    ESP_LOGI (
+                        TAG,
+                        "Measured: eC02: %" PRIu16 "\tTVOC: %" PRIu16 "",
+                        mean.eCO2,
+                        mean.TVOC
+                    );
                     ESP_ERROR_CHECK (esp_event_post_to (
                         sgp30_event_loop,
                         SGP30_EVENT,
                         SGP30_EVENT_NEW_MEASUREMENT,
                         &mean,
-                        sizeof (sgp30_measurement_t),
+                        sizeof(sgp30_measurement_t),
                         portMAX_DELAY
                     ));
                 }
@@ -183,7 +194,7 @@ static void sgp30_operation_task (
                 if (xSemaphoreTake (sgp30_measurement_requested, 0) == pdTRUE)
                 {
                     sgp30_measurement_t mean;
-                    sgp30_measurement_log_get_mean (&mean, &measurement_log);
+                    sgp30_measurement_log_get_mean(&mean, &measurement_log);
                     ESP_LOGI (TAG, "Request Received");
                     ESP_ERROR_CHECK (esp_event_post_to (
                         sgp30_event_loop,
@@ -707,21 +718,15 @@ esp_err_t sgp30_measurement_log_enqueue (
 {
     if (q->size == MAX_QUEUE_SIZE)
     {
-        memcpy (
-            &q->measurements[q->oldest_index],
-            m,
-            sizeof (sgp30_measurement_t)
-        );
+        q->measurements[q->oldest_index].eCO2 = m->eCO2;
+        q->measurements[q->oldest_index].TVOC = m->TVOC;
         q->oldest_index = (q->oldest_index + 1) % MAX_QUEUE_SIZE;
     }
     else
     {
         q->size++;
-        memcpy (
-            &q->measurements[(q->oldest_index + q->size) % MAX_QUEUE_SIZE],
-            m,
-            sizeof (sgp30_measurement_t)
-        );
+        q->measurements[(q->oldest_index + q->size) % MAX_QUEUE_SIZE].eCO2 = m->eCO2;
+        q->measurements[(q->oldest_index + q->size) % MAX_QUEUE_SIZE].TVOC = m->TVOC;
     }
     return ESP_OK;
 }
@@ -737,18 +742,6 @@ esp_err_t sgp30_measurement_log_dequeue (
     }
     else
     {
-        memcpy (
-            m,
-            &q->measurements[q->oldest_index],
-            sizeof (sgp30_measurement_t)
-        );
-#ifdef ZERO_OUT_QUEUE_ON_DEQUEUE
-        memset (
-            &q->measurements[q->oldest_index],
-            0,
-            sizeof (sgp30_measurement_t)
-        );
-#endif
         q->oldest_index = (q->oldest_index + 1) % MAX_QUEUE_SIZE;
         q->size--;
         return ESP_OK;
@@ -762,10 +755,11 @@ esp_err_t sgp30_measurement_log_get_mean (
 {
     uint32_t mean_eCO2 = 0;
     uint32_t mean_TVOC = 0;
+    int j = q->oldest_index;
     for (int i = 0; i < q->size; i++)
     {
-        mean_eCO2 += (uint32_t)q->measurements[i].eCO2;
-        mean_TVOC += (uint32_t)q->measurements[i].TVOC;
+        mean_eCO2 += (uint32_t)q->measurements[(j + i) % MAX_QUEUE_SIZE].eCO2;
+        mean_TVOC += (uint32_t)q->measurements[(j + i) % MAX_QUEUE_SIZE].TVOC;
     }
     m->eCO2 = (uint16_t)(mean_eCO2 % q->size);
     m->TVOC = (uint16_t)(mean_TVOC % q->size);

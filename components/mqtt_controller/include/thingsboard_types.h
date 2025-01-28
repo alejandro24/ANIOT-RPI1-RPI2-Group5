@@ -1,5 +1,6 @@
 #ifndef THINGSBOARD_TYPES_H
 #define THINGSBOARD_TYPES_H
+#include <stddef.h>
 #include <stdint.h>
 
 typedef struct {
@@ -8,10 +9,13 @@ typedef struct {
 } thingsboard_address_t;
 typedef struct {
     char* certificate;
+    size_t certificate_len;
 } thingsboard_verification_t;
 typedef struct {
     char* certificate;
+    size_t certificate_len;
     char* key;
+    size_t key_len;
 } thingsboard_authentication_t;
 typedef struct {
     thingsboard_authentication_t authentication;
