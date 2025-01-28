@@ -374,7 +374,7 @@ esp_err_t mqtt_publish(
         DEVICE_TELEMETRY_TOPIC,
         data,
         data_len,
-        0,
+        1,
         0
     );
     if (msg_id < 0) {
