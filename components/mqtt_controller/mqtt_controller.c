@@ -320,8 +320,9 @@ esp_err_t mqtt_init(
     event_loop = loop;
 
     esp_mqtt_client_config_t mqtt_cfg = {
-        .broker.address.uri = cfg->address.uri,
+        .broker.address.hostname = cfg->address.uri,
         .broker.address.port = cfg->address.port,
+        .broker.address.transport = MQTT_TRANSPORT_OVER_SSL,
         .broker.verification.certificate = cfg->verification.certificate,
         .credentials.authentication.certificate =
             cfg->credentials.authentication.certificate,
