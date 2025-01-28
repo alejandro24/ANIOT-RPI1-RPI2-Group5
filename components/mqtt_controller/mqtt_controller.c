@@ -22,7 +22,7 @@
 #define THINGSBOARD_PROVISION_USERNAME "provision"
 #define DEVICE_ATTRIBUTES_TOPIC "v1/devices/me/attributes"
 #define DEVICE_ATTRIBUTES_REQUEST "v1/devices/me/attributes/request/"
-#define DEVICE_ATTRIBUTES_REQUEST "v1/devices/me/attributes/response/+"
+#define DEVICE_ATTRIBUTES_RESPONSE "v1/devices/me/attributes/response/+"
 #define DEVICE_TELEMETRY_TOPIC "v1/devices/me/telemetry"
 #define PROVISION_REQUEST_TOPIC "/provision/request/"
 #define PROVISION_RESPONSE_TOPIC "/provision/response/+"
