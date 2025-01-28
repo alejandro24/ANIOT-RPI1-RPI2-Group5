@@ -21,6 +21,8 @@
 #define MAX_PROVISIONING_WAIT portMAX_DELAY
 #define THINGSBOARD_PROVISION_USERNAME "provision"
 #define DEVICE_ATTRIBUTES_TOPIC "v1/devices/me/attributes"
+#define DEVICE_ATTRIBUTES_REQUEST "v1/devices/me/attributes/request/"
+#define DEVICE_ATTRIBUTES_REQUEST "v1/devices/me/attributes/response/+"
 #define DEVICE_TELEMETRY_TOPIC "v1/devices/me/telemetry"
 #define PROVISION_REQUEST_TOPIC "/provision/request/"
 #define PROVISION_RESPONSE_TOPIC "/provision/response/+"
@@ -43,12 +45,12 @@ static void mqtt_connected_event_handler(
     char *topic;
     ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
     esp_mqtt_client_subscribe(client, DEVICE_ATTRIBUTES_TOPIC, 0);
-    esp_mqtt_client_subscribe(client, PROVISION_RESPONSE_TOPIC, 0);
+    esp_mqtt_client_subscribe(client, DEVICE_ATTRIBUTES_RESPONSE, 0);
     request_count++;
-    int required_size = snprintf(NULL, 0, "%s%d", PROVISION_REQUEST_TOPIC, request_count) + 1; // +1 para el carácter nulo
+    int required_size = snprintf(NULL, 0, "%s%d", DEVICE_ATTRIBUTES_REQUEST, request_count) + 1; // +1 para el carácter nulo
     topic = (char*) malloc(required_size);
     if (topic) {
-        snprintf(topic, required_size, "%s%d", PROVISION_REQUEST_TOPIC, request_count);
+        snprintf(topic, required_size, "%s%d", DEVICE_ATTRIBUTES_REQUEST, request_count);
         // Usar topic
         esp_mqtt_client_publish(client, topic, "{\"sharedKeys\":\"send_time\"}", 0, 1, 0);
         free(topic); // Liberar memoria cuando ya no se necesite
