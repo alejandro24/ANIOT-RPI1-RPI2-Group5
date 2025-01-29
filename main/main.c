@@ -49,9 +49,21 @@ uint16_t send_time = 30;
 thingsboard_cfg_t thingsboard_cfg;
 wifi_credentials_t wifi_credentials;
 
+
+
 char *prepare_meassure_send(long ts, sgp30_measurement_t measurement);
 
-/*wifi handler to take actions for the different wifi events*/
+/**
+ * @brief This function handles Wi-Fi connection events, attempting to reconnect automatically with an exponential backoff if a disconnection occurs. 
+   It logs important events and resets the retry counter when the connection is successful.
+ *
+ * @param void *arg. Additional argument passed to the function.
+ * @param esp_event_base_t event_base. Event base.
+ * @param int32_t event_id. Event identifier.
+ * @param void *event_data. Event data.
+ * @return
+ *
+ */
 static void wifi_event_handler(
     void *arg,
     esp_event_base_t event_base,
@@ -64,32 +76,31 @@ static void wifi_event_handler(
     switch (event_id)
     {
         case WIFI_EVENT_STA_START:
-            ESP_LOGI(TAG, "Conectando a WiFi...");
-            esp_wifi_connect(); // Intenta la conexión
+            ESP_LOGI(TAG, "Connecting to WiFi network...");
+            esp_wifi_connect(); /*Trying to connect*/
             break;
         case WIFI_EVENT_STA_CONNECTED:
-            retry_count = 0; /* Reseteamos el contador de reintentos*/
-            ESP_LOGI(TAG, "Conectado exitosamente al WiFi");
+            retry_count = 0; /* We reset the retry counter*/
+            ESP_LOGI(TAG, "Successfully connected to WiFi connection.");
             break;
         case WIFI_EVENT_STA_DISCONNECTED:
-            ESP_LOGI(TAG, "Desconectado del WiFi, reintentando...");
+            ESP_LOGI(TAG, "Disconnected from WiFi...trying again");
             if (retry_count < 5)
             {
                 int delay = (1 << retry_count)
-                            * 1000; /* Backoff exponencial (1s, 2s, 4s...)*/
-                ESP_LOGI(TAG, "Reintentando en %d ms...", delay);
+                            * 1000; /* Backoff exponential (1s, 2s, 4s...)*/
+                ESP_LOGI(TAG, "Retrying in %d ms...", delay);
                 vTaskDelay(pdMS_TO_TICKS(delay)
-                ); // Esperar antes de intentar nuevamente
+                ); // Wait before trying again
                 esp_wifi_connect();
                 retry_count++;
             } else
             {
                 ESP_LOGE(
                     TAG,
-                    "No se pudo conectar al WiFi después de varios "
-                    "intentos."
+                    "Could not connect to WiFi after several attempts"
                 );
-                /* Acciones adicionales si fallan todos los intentos*/
+                /*Additional actions if all attempts fail*/
             }
             break;
         default:
@@ -97,6 +108,17 @@ static void wifi_event_handler(
     }
 }
 
+/**
+ * @brief This function handles new measurements from the SGP30 sensor, creates a log entry with the measurement and the time, converts the measurement to a JSON representation, and publishes it via MQTT. 
+ *  Additionally, the code contains comments for enqueueing the measurement and storing the log entry.
+ *
+ * @param void *handler_args. Additional arguments passed to the function.
+ * @param esp_event_base_t base. Event base.
+ * @param int32_t event_id. Event identifier.
+ * @param void *event_data. Event data.
+ * @return
+ *
+ */
 static void sgp30_on_new_measurement(
     void *handler_args,
     esp_event_base_t base,
@@ -121,6 +143,17 @@ static void sgp30_on_new_measurement(
     /*Send or store log_entry*/
 }
 
+/**
+ * @brief This function handles events that change the data transmission interval, logging the change, 
+ *  assigning the new interval, and restarting the SGP30 sensor measurement with the new interval.
+ *
+ * @param void *handler_args. Additional arguments passed to the function.
+ * @param esp_event_base_t base. Event base.
+ * @param int32_t event_id. Event identifier.
+ * @param void *event_data. Event data.
+ * @return
+ *
+ */
 static void mqtt_on_new_interval(
     void *handler_args,
     esp_event_base_t base,
@@ -129,10 +162,21 @@ static void mqtt_on_new_interval(
 )
 {
     send_time = *((int *)event_data);
-    ESP_LOGI(TAG, "Cambiando intervalo de envio %d segundos", send_time);
+    ESP_LOGI(TAG, "Changing transmission interval %d seconds", send_time);
     sgp30_restart_measuring( send_time);
 }
 
+/**
+ * @brief This function handles SNTP time synchronization events, 
+   logging the event, obtaining the current time, and setting the time in the power manager.
+ *
+ * @param void *handler_args. Additional arguments passed to the function.
+ * @param esp_event_base_t base. Event base.
+ * @param int32_t event_id. Event identifier.
+ * @param void *event_data. Event data.
+ * @return
+ *
+ */
 static void sntp_on_sync_time(
     void *handler_args,
     esp_event_base_t base,
@@ -140,7 +184,7 @@ static void sntp_on_sync_time(
     void *event_data
 )
 {
-    ESP_LOGI(TAG, "Tiempo sincronizado cambiando momento deep sleep");
+    ESP_LOGI(TAG, "Time synchronized, changing deep sleep");
     struct tm timeinfo;
     time_t time_now;
 
@@ -149,6 +193,17 @@ static void sntp_on_sync_time(
     power_manager_set_sntp_time(&timeinfo);
 }
 
+/**
+ * @brief This function handles new baseline events from the SGP30 sensor, creating a new baseline entry, 
+ *  storing it, and logging the eCO2 and TVOC values along with the timestamp.
+ *
+ * @param void *handler_args. Additional arguments passed to the function.
+ * @param esp_event_base_t base. Event base.
+ * @param int32_t event_id. Event identifier.
+ * @param void *event_data. Event data.
+ * @return
+ *
+ */
 static void sgp30_on_new_baseline(
     void *handler_args,
     esp_event_base_t base,
@@ -175,6 +230,16 @@ static const sgp30_event_handler_register_t sgp30_registered_events[] = {
     { SGP30_EVENT_NEW_MEASUREMENT,    sgp30_on_new_baseline }
 };
 
+/**
+ * @brief This function initializes the I2C master bus with a specific configuration, including the I2C port, SCL and SDA pins, and the use of internal pull-up resistors. If the initialization fails, an error is logged, 
+ * and the corresponding error code is returned. In case of success, ESP_OK is returned.
+ *
+ * @param i2c_master_bus_handle_t *bus_handle. Pointer to the I2C master bus handle.
+ * @return esp_err_t ESP_OK.
+ * @return esp_err_t ERROR.
+ *
+ */
+
 static const size_t sgp30_registered_events_len =
     sizeof(sgp30_registered_events) / sizeof(sgp30_registered_events[0]);
 #endif
@@ -199,6 +264,14 @@ static esp_err_t init_i2c(i2c_master_bus_handle_t *bus_handle)
     return ESP_OK;
 }
 
+/**
+ * @brief This function takes a measurement from the SGP30 sensor and its timestamp, 
+ * creates a JSON representation of the data, and returns this JSON representation as a string.
+ *
+ * @param long ts. Timestamp of the measurement.
+ * @param sgp30_measurement_t measurement. Structure containing the eCO2 and TVOC measurements.
+ * @return char*, data_to_send by JSON.
+ */
 char *prepare_meassure_send(long ts, sgp30_measurement_t measurement)
 {
     cJSON *json_data = cJSON_CreateObject();
