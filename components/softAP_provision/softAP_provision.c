@@ -217,7 +217,7 @@ esp_err_t softAP_provision_init(thingsboard_cfg_t *thingsboard_cfg, wifi_credent
         wifi_prov_mgr_config_t config = {
             .scheme = wifi_prov_scheme_softap,
             /*This can be set to
-            * WIFI_PROV_EVENT_HANDLER_NONE when using wifi_prov_scheme_softap*/
+              WIFI_PROV_EVENT_HANDLER_NONE when using wifi_prov_scheme_softap*/
             .scheme_event_handler = WIFI_PROV_EVENT_HANDLER_NONE
         };
         /* Initialize provisioning manager with the
@@ -229,23 +229,23 @@ esp_err_t softAP_provision_init(thingsboard_cfg_t *thingsboard_cfg, wifi_credent
 
     #ifdef CONFIG_EXAMPLE_PROV_SECURITY_VERSION_1
             /* What is the security level that we want (1, 2):
-            *      - WIFI_PROV_SECURITY_0 is simply plain text communication.
-            *      - WIFI_PROV_SECURITY_1 is secure communication which consists of secure handshake
-            *          using X25519 key exchange and proof of possession (pop) and AES-CTR
-            *          for encryption/decryption of messages.
-            *      - WIFI_PROV_SECURITY_2 SRP6a based authentication and key exchange
-            *        + AES-GCM encryption/decryption of messages
+                  - WIFI_PROV_SECURITY_0 is simply plain text communication.
+                  - WIFI_PROV_SECURITY_1 is secure communication which consists of secure handshake
+                      using X25519 key exchange and proof of possession (pop) and AES-CTR
+                      for encryption/decryption of messages.
+                  - WIFI_PROV_SECURITY_2 SRP6a based authentication and key exchange
+                    + AES-GCM encryption/decryption of messages
             */
             wifi_prov_security_t security = WIFI_PROV_SECURITY_1;
 
             /* Do we want a proof-of-possession (ignored if Security 0 is selected):
-            *      - this should be a string with length > 0
-            *      - NULL if not used
+                  - this should be a string with length > 0
+                  - NULL if not used
             */
             const char *pop = "abcd1234";
 
             /* This is the structure for passing security parameters
-            * for the protocomm security 1.
+               for the protocomm security 1.
             */
             wifi_prov_security1_params_t *sec_params = pop;
 
@@ -253,11 +253,11 @@ esp_err_t softAP_provision_init(thingsboard_cfg_t *thingsboard_cfg, wifi_credent
 
     #elif CONFIG_EXAMPLE_PROV_SECURITY_VERSION_2
             wifi_prov_security_t security = WIFI_PROV_SECURITY_2;
-            /* The username must be the same one, which has been used in the generation of salt and verifier */
-            /* This is the structure for passing security parameters
-            * for the protocomm security 2.
-            * If dynamically allocated, sec2_params pointer and its content
-            * must be valid till WIFI_PROV_END event is triggered.
+            /* The username must be the same one, which has been used in the generation of salt and verifier
+               This is the structure for passing security parameters
+               for the protocomm security 2.
+               If dynamically allocated, sec2_params pointer and its content
+               must be valid till WIFI_PROV_END event is triggered.
             */
             wifi_prov_security2_params_t sec2_params = {};
 
@@ -268,16 +268,15 @@ esp_err_t softAP_provision_init(thingsboard_cfg_t *thingsboard_cfg, wifi_credent
     #endif
 
         /* What is the service key (could be NULL)
-        * This translates to :
-        *     - Wi-Fi password when scheme is wifi_prov_scheme_softap
-        *          (Minimum expected length: 8, maximum 64 for WPA2-PSK)
-        *     - simply ignored when scheme is wifi_prov_scheme_ble
+           This translates to :
+            - Wi-Fi password when scheme is wifi_prov_scheme_softap
+                  (Minimum expected length: 8, maximum 64 for WPA2-PSK)
+            - simply ignored when scheme is wifi_prov_scheme_ble
         */
         const char *service_key = NULL;
 
-        /* An endpoint that applications create to get the
-        *thingsboard url.
-        * This call must be made before starting the provisioning.
+        /* An endpoint that applications create to get the thingsboard url.
+        This call must be made before starting the provisioning.
         */
         ESP_ERROR_CHECK(wifi_prov_mgr_endpoint_create("data-to-receive"));
         ESP_ERROR_CHECK(wifi_prov_mgr_endpoint_create("thingsboard-cnf"));
@@ -286,8 +285,8 @@ esp_err_t softAP_provision_init(thingsboard_cfg_t *thingsboard_cfg, wifi_credent
         ESP_RETURN_ON_ERROR(wifi_prov_mgr_start_provisioning(security, (const void *) sec_params, service_name, service_key), TAG, "Fallo al empezar el provisionamiento");
 
         /* The handler for the optional endpoint created above.
-        * This call must be made after starting the provisioning, and only if the endpoint
-        * has already been created above.
+           This call must be made after starting the provisioning, and only if the endpoint
+            has already been created above.
         */
         ESP_ERROR_CHECK(wifi_prov_mgr_endpoint_register("data-to-receive", data_to_receive_prov_data_handler, NULL));
         ESP_ERROR_CHECK(wifi_prov_mgr_endpoint_register("thingsboard-cnf", thingsboard_cnf_prov_data_handler, NULL));
