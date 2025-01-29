@@ -76,7 +76,7 @@ esp_err_t example_get_sec2_salt(const char **salt, uint16_t *salt_len);
  * @return
  *
  */
-esp_err_t example_get_sec2_verifier(const char **verifier, const char **verifier);
+esp_err_t example_get_sec2_verifier(const char **verifier, uint16_t verifier_len);
 #endif
 
 /**

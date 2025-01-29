@@ -322,7 +322,7 @@ esp_err_t mqtt_init(
 ) {
     event_loop = loop;
     ESP_LOGI(TAG, "Iniciando MQTT, %s \n %d", (const char*) cfg->verification.certificate,
-    cfg->verification.certificate_len);
+    (int) cfg->verification.certificate_len);
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker.address.hostname = cfg->address.uri,
         .broker.address.port = cfg->address.port,
