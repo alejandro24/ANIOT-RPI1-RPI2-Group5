@@ -10,7 +10,7 @@ static const char *TAG = "wifi_power_manager";
 
 esp_err_t wifi_power_save_init(void) {
     ESP_LOGI(TAG, "Initializing Wi-Fi power save mode");
-    // Additional initialization logic can be added here
+    /* Additional initialization logic can be added here*/
     return ESP_OK;
 }
 
