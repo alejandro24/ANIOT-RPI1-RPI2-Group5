@@ -1,0 +1,19 @@
+menu "Power Manager Configuration"
+
+    config PM_ACTIVE_START_HOUR
+        string "Start hour for the active range (HH:MM)"
+        default "08:00"
+        help
+            Define the start time since the firmware will start running and wakeup from deep_sleep.
+            Format HH:MM
+            Range values: 00:00 - 23:59
+
+    config PM_ACTIVE_END_HOUR
+        string "End hour for the active range (HH:MM)"
+        default "22:00"
+        help
+            Define the end time since the firmware will stop running and enter deep_sleep mode.
+            Format HH:MM
+            Range values: 00:00 - 23:59
+
+endmenu

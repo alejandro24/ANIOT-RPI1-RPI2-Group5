@@ -26,6 +26,9 @@ Group 5. Members: Pablo Alcalde, Diego Alejandro de Celis, Diego Pellicer, Jaime
 #include <esp_wifi.h>
 #include <string.h>
 #include "mbedtls/x509_crt.h"
+#include "power_manager.h"
+#include "wifi_power_manager.h"
+#include "sntp_sync.h"
 
 #include "esp_log.h"
 
@@ -257,6 +260,9 @@ void app_main(void)
         )
     );
 
+    power_manager_init();
+    wifi_power_save_init();
+
     esp_err_t got_thingboard_cfg = storage_get(&thingsboard_cfg);
     esp_err_t got_wifi_credentials = storage_get(&wifi_credentials);
     if( got_thingboard_cfg != got_wifi_credentials)
@@ -287,12 +293,16 @@ void app_main(void)
         ESP_ERROR_CHECK(softAP_provision_init(&thingsboard_cfg, &wifi_credentials));
     }
 
+    init_sntp();
 
     /* At this point a valid time is required*/
     /* We start the sensor*/
     sgp30_timed_measurement_t maybe_baseline;
     time_t time_now;
+    struct tm timeinfo;
+
     time(&time_now);
+    localtime_r(&time_now, &timeinfo);
     if (ESP_OK == storage_get(&maybe_baseline)
         && !sgp30_is_baseline_expired(maybe_baseline.time, time_now))
     {
@@ -304,8 +314,11 @@ void app_main(void)
     /* Esto debería de iniciarse al tener un valor del intervalo, por MQTT*/
     /* (atributo compartido creo) Se inicia solo al mandar un evento*/
     /* SGP30_EVENT_NEW_INTERVAL*/
-    #endif
-
+    
+    //Tras haber sincronizado la hora con sntp ajustamos la hora de entrada en deep sleep
+    power_manager_set_sntp_time(&timeinfo);
     mqtt_init(imc_event_loop_handle, &thingsboard_cfg);
-    sgp30_start_measuring(DEFAULT_MEASURING_TIME);
+    wifi_set_power_mode(WIFI_POWER_MODE_MAX_MODEM);
+    sgp30_start_measuring(send_time);
+    #endif
 }

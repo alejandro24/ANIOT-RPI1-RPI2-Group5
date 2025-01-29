@@ -168,21 +168,21 @@ esp_err_t thingsboard_cnf_prov_data_handler(uint32_t session_id, const uint8_t *
             ESP_LOGI(TAG, "%d", provision_thingsboard_cfg.address.port);
         }
         else if(data_to_receive == 2){
-            provision_thingsboard_cfg.verification.certificate_len = inlen;
+            provision_thingsboard_cfg.verification.certificate_len = inlen + 1;
             provision_thingsboard_cfg.verification.certificate = malloc(sizeof(char) * inlen);
             strncpy(provision_thingsboard_cfg.verification.certificate, (char*) inbuf, inlen);
             provision_thingsboard_cfg.verification.certificate[inlen] = '\0';
             ESP_LOGI(TAG, "%s", provision_thingsboard_cfg.verification.certificate);
         }
         else if(data_to_receive == 3){
-            provision_thingsboard_cfg.credentials.authentication.certificate_len = inlen;
+            provision_thingsboard_cfg.credentials.authentication.certificate_len = inlen + 1;
             provision_thingsboard_cfg.credentials.authentication.certificate = malloc(sizeof(char) * inlen);
             strncpy(provision_thingsboard_cfg.credentials.authentication.certificate, (char*) inbuf, inlen);
             provision_thingsboard_cfg.credentials.authentication.certificate[inlen] = '\0';
             ESP_LOGI(TAG, "%s", provision_thingsboard_cfg.credentials.authentication.certificate);
         }
         else if(data_to_receive == 4){
-            provision_thingsboard_cfg.credentials.authentication.key_len = inlen;
+            provision_thingsboard_cfg.credentials.authentication.key_len = inlen + 1;
             provision_thingsboard_cfg.credentials.authentication.key = malloc(sizeof(char) * inlen);
             strncpy(provision_thingsboard_cfg.credentials.authentication.key, (char*) inbuf, inlen);
             provision_thingsboard_cfg.credentials.authentication.key[inlen] = '\0';
