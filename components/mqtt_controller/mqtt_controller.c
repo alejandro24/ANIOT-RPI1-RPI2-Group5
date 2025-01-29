@@ -20,6 +20,7 @@
 #define THINGSBOARD_PROVISION_USERNAME "provision"
 #define DEVICE_ATTRIBUTES_TOPIC "v1/devices/me/attributes"
 #define DEVICE_ATTRIBUTES_REQUEST "v1/devices/me/attributes/request/"
+#define DEVICE_ATTRIBUTES_RESPONSE_RET "v1/devices/me/attributes/response/"
 #define DEVICE_ATTRIBUTES_RESPONSE "v1/devices/me/attributes/response/+"
 #define DEVICE_TELEMETRY_TOPIC "v1/devices/me/telemetry"
 #define PROVISION_REQUEST_TOPIC "/provision/request/"
@@ -103,7 +104,8 @@ static void mqtt_data_event_handler(
     ESP_LOGI(TAG, "MQTT_EVENT_DATA");
     printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
     printf("DATA=%.*s\r\n", event->data_len, event->data);
-    cJSON *jsonData = cJSON_Parse(event->data);
+    cJSON *jsonData = NULL;
+    jsonData = cJSON_Parse(event->data);
     received_data(jsonData, event->topic, event->topic_len);
     cJSON_Delete(jsonData);
 }
@@ -147,10 +149,11 @@ void log_error_if_nonzero(const char *message, int error_code)
 void received_data(cJSON *root, char* topic, size_t topic_len){
     cJSON *item = NULL, *shared = NULL;
     int send_time;
-    int required_size = snprintf(NULL, 0, "%s%d", PROVISION_RESPONSE_TOPIC_RET, request_count) + 1; // +1 para el carácter nulo
+    int required_size = snprintf(NULL, 0, "%s%d", DEVICE_ATTRIBUTES_RESPONSE_RET, request_count) + 1; // +1 para el carácter nulo
     char * request_topic = (char*) malloc(required_size);
+    ESP_LOGI(TAG, "Entra aquí");
     if (request_topic) {
-        snprintf(request_topic, required_size, "%s%d", PROVISION_REQUEST_TOPIC, request_count);
+        snprintf(request_topic, required_size, "%s%d", DEVICE_ATTRIBUTES_RESPONSE_RET, request_count);
     }
     if(strncmp(topic, DEVICE_ATTRIBUTES_TOPIC, topic_len) == 0){
         if(cJSON_HasObjectItem(root, "send_time")){
@@ -163,11 +166,15 @@ void received_data(cJSON *root, char* topic, size_t topic_len){
         }
     }
     else if(strncmp(topic, request_topic, topic_len) == 0){
+        ESP_LOGI(TAG, "Segundo if");
         if(cJSON_HasObjectItem(root, "shared")){
+            ESP_LOGI(TAG, "terecero if");
             shared = cJSON_GetObjectItem(root, "shared");
             if(cJSON_HasObjectItem(shared, "send_time")){
-                item = cJSON_GetObjectItem(root, "send_time");
+                ESP_LOGI(TAG, "cuarto if");
+                item = cJSON_GetObjectItem(shared, "send_time");
                 if(cJSON_IsNumber(item)){
+                    ESP_LOGI(TAG, "Posteando nuevo tiempo de envio");
                     send_time = item->valueint;
                     ESP_ERROR_CHECK(
                         esp_event_post_to(event_loop, MQTT_THINGSBOARD_EVENT, MQTT_NEW_SEND_TIME, &send_time, sizeof(send_time), portMAX_DELAY));
@@ -176,8 +183,6 @@ void received_data(cJSON *root, char* topic, size_t topic_len){
         }
     }
     free(request_topic);
-    cJSON_Delete(item);
-    cJSON_Delete(shared);
 }
 
 bool is_provision(cJSON *root, char* topic, size_t topic_len){
@@ -197,6 +202,7 @@ bool is_provision(cJSON *root, char* topic, size_t topic_len){
 }
 
 esp_err_t send_messure(char * data_to_send){
+    ESP_LOGI(TAG, "measure: %s", data_to_send);
     ESP_ERROR_CHECK(esp_mqtt_client_publish(client, "v1/devices/me/telemetry", data_to_send, 0, 1, 0));
 
     cJSON_free(data_to_send);

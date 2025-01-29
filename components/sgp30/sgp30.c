@@ -482,14 +482,14 @@ esp_err_t sgp30_restart_measuring (
     {
         return esp_timer_restart (
             sgp30_req_measurement_timer_handle,
-            new_measurement_interval
+            new_measurement_interval * 1000000
         );
     }
     else
     {
         return esp_timer_start_periodic (
             sgp30_req_measurement_timer_handle,
-            new_measurement_interval
+            new_measurement_interval * 1000000
         );
     }
 }

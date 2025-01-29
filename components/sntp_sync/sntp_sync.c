@@ -9,20 +9,22 @@
 #include "esp_netif_sntp.h"
 #include "lwip/ip_addr.h"
 #include "esp_sntp.h"
+#include "sntp_sync.h"
 
 static const char *TAG = "sntp";
+esp_event_loop_handle_t sntp_event_loop;
 
 #ifndef INET6_ADDRSTRLEN
 #define INET6_ADDRSTRLEN 48
 #endif
+
+ESP_EVENT_DEFINE_BASE(SNTP_SYNC_EVENT);
 
 /* Variable holding number of times ESP32 restarted since first boot.
  * It is placed into RTC memory using RTC_DATA_ATTR and
  * maintains its value when ESP32 wakes from deep sleep.
  */
 RTC_DATA_ATTR static int boot_count = 0;
-
-static void obtain_time(void);
 
 void time_sync_notification_cb(struct timeval *tv)
 {
@@ -102,15 +104,20 @@ void obtain_time(void)
     while (esp_netif_sntp_sync_wait(2000 / portTICK_PERIOD_MS) == ESP_ERR_TIMEOUT && ++retry < retry_count) {
         ESP_LOGI(TAG, "Waiting for system time to be set... (%d/%d)", retry, retry_count);
     }
-    time(&now);
-    localtime_r(&now, &timeinfo);
+    if(retry < retry_count){
+            time(&now);
+        localtime_r(&now, &timeinfo);
+        esp_event_post_to(sntp_event_loop, SNTP_SYNC_EVENT, SNTP_SUCCESSFULL_SYNC, NULL, 0, portMAX_DELAY);
+    }
+
 
     esp_netif_sntp_deinit();
 }
 
 
-void init_sntp(void)
+void init_sntp(esp_event_loop_handle_t loop)
 {
+    sntp_event_loop = loop;
     ++boot_count;
     ESP_LOGI(TAG, "Boot count: %d", boot_count);
 

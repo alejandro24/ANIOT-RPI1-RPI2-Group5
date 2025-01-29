@@ -4,6 +4,18 @@
 #include "esp_err.h"
 #include <time.h>
 
+ESP_EVENT_DECLARE_BASE(SNTP_SYNC_EVENT);
+
+typedef enum {
+    SNTP_SUCCESSFULL_SYNC,
+}sntp_sync_event_t;
+
+ESP_EVENT_DECLARE_BASE(SNTP_SYNC_EVENT);
+
+typedef enum {
+    SNTP_SUCCESSFULL_SYNC,
+}sntp_sync_event_t;
+
 /**
  * @brief Procedure to obtain the current time.
  *

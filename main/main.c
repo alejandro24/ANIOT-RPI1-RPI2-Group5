@@ -128,8 +128,25 @@ static void mqtt_on_new_interval(
     void *event_data
 )
 {
-    uint32_t new_measurement_interval = *((uint32_t *)event_data);
-    sgp30_restart_measuring(new_measurement_interval);
+    ESP_LOGI(TAG, "Cambiando intervalo de envio");
+    send_time = *((int *)event_data);
+    sgp30_restart_measuring((uint64_t) send_time);
+}
+
+static void sntp_on_sync_time(
+    void *handler_args,
+    esp_event_base_t base,
+    int32_t event_id,
+    void *event_data
+)
+{
+    ESP_LOGI(TAG, "Tiempo sincronizado cambiando momento deep sleep");
+    struct tm timeinfo;
+    time_t time_now;
+
+    time(&time_now);
+    localtime_r(&time_now, &timeinfo);
+    power_manager_set_sntp_time(&timeinfo);
 }
 
 static void sgp30_on_new_baseline(
@@ -260,6 +277,17 @@ void app_main(void)
         )
     );
 
+        /* Set up event listeenr for MQTT module*/
+    ESP_ERROR_CHECK(
+        esp_event_handler_register_with(
+            imc_event_loop_handle,
+            SNTP_SYNC_EVENT,
+            SNTP_SUCCESSFULL_SYNC,
+            sntp_on_sync_time,
+            NULL
+        )
+    );
+
     power_manager_init();
     wifi_power_save_init();
 
@@ -293,16 +321,14 @@ void app_main(void)
         ESP_ERROR_CHECK(softAP_provision_init(&thingsboard_cfg, &wifi_credentials));
     }
 
-    init_sntp();
+    init_sntp(imc_event_loop_handle);
 
     /* At this point a valid time is required*/
     /* We start the sensor*/
     sgp30_timed_measurement_t maybe_baseline;
     time_t time_now;
-    struct tm timeinfo;
 
     time(&time_now);
-    localtime_r(&time_now, &timeinfo);
     if (ESP_OK == storage_get(&maybe_baseline)
         && !sgp30_is_baseline_expired(maybe_baseline.time, time_now))
     {
@@ -316,7 +342,6 @@ void app_main(void)
     /* SGP30_EVENT_NEW_INTERVAL*/
     
     //Tras haber sincronizado la hora con sntp ajustamos la hora de entrada en deep sleep
-    power_manager_set_sntp_time(&timeinfo);
     mqtt_init(imc_event_loop_handle, &thingsboard_cfg);
     wifi_set_power_mode(WIFI_POWER_MODE_MAX_MODEM);
     sgp30_start_measuring(send_time);
