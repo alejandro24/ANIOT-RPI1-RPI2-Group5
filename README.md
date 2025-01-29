@@ -34,6 +34,8 @@ A GitHub repository has been created to follow a collaborative working model. Ad
 # _Design_
 Once objectives and mandatory and optinal requirements have been analysed by the team, an initial system definition was performed. It includes workflow diagram and component definition. 
 
+We have followed this https://www.cs.umd.edu/~nelson/classes/resources/cstyleguide/ programming approach.
+
 ## Workflow diagram and initial approach
 We have defined the following initial workflow diagram for our Air quality evaluation system. 
 
