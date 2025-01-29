@@ -130,7 +130,7 @@ void init_sntp(esp_event_loop_handle_t loop)
     if (timeinfo.tm_year < (2016 - 1900)) {
         ESP_LOGI(TAG, "Time is not set yet. Connecting to WiFi and getting time over NTP.");
         obtain_time();
-        / update 'now' variable with current time*/
+        /*update 'now' variable with current time*/
         time(&now);
     }
 #ifdef CONFIG_SNTP_TIME_SYNC_METHOD_SMOOTH

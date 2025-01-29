@@ -10,12 +10,6 @@ typedef enum {
     SNTP_SUCCESSFULL_SYNC,
 }sntp_sync_event_t;
 
-ESP_EVENT_DECLARE_BASE(SNTP_SYNC_EVENT);
-
-typedef enum {
-    SNTP_SUCCESSFULL_SYNC,
-}sntp_sync_event_t;
-
 /**
  * @brief Procedure to obtain the current time.
  *
@@ -41,6 +35,6 @@ void time_sync_notification_cb(struct timeval *tv);
  * @return
  *   
  */
-void init_sntp(void);
+void init_sntp(esp_event_loop_handle_t loop);
 
 #endif

@@ -22,7 +22,7 @@ static int64_t start_time = 0;
 
 static void deep_sleep_timer_callback(void *arg)
 {
-    /*Get the final timestamp when the timer is triggered*/.
+    /*Get the final timestamp when the timer is triggered*/
 
     int64_t end_time = esp_timer_get_time();
 

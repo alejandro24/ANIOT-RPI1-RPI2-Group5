@@ -154,7 +154,6 @@ void received_data(cJSON *root, char* topic, size_t topic_len){
     int send_time;
     int required_size = snprintf(NULL, 0, "%s%d", DEVICE_ATTRIBUTES_RESPONSE_RET, request_count) + 1; // +1 para el carácter nulo
     char * request_topic = (char*) malloc(required_size);
-    ESP_LOGI(TAG, "Entra aquí");
     if (request_topic) {
         snprintf(request_topic, required_size, "%s%d", DEVICE_ATTRIBUTES_RESPONSE_RET, request_count);
     }
@@ -169,12 +168,9 @@ void received_data(cJSON *root, char* topic, size_t topic_len){
         }
     }
     else if(strncmp(topic, request_topic, topic_len) == 0){
-        ESP_LOGI(TAG, "Segundo if");
         if(cJSON_HasObjectItem(root, "shared")){
-            ESP_LOGI(TAG, "terecero if");
             shared = cJSON_GetObjectItem(root, "shared");
             if(cJSON_HasObjectItem(shared, "send_time")){
-                ESP_LOGI(TAG, "cuarto if");
                 item = cJSON_GetObjectItem(shared, "send_time");
                 if(cJSON_IsNumber(item)){
                     ESP_LOGI(TAG, "Posteando nuevo tiempo de envio");
@@ -328,7 +324,8 @@ esp_err_t mqtt_init(
     thingsboard_cfg_t *cfg
 ) {
     event_loop = loop;
-    ESP_LOGI(TAG, "Iniciando MQTT, %s", (const char*) cfg->verification.certificate);
+    ESP_LOGI(TAG, "Iniciando MQTT, %s \n %d", (const char*) cfg->verification.certificate,
+    cfg->verification.certificate_len);
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker.address.hostname = cfg->address.uri,
         .broker.address.port = cfg->address.port,
@@ -342,12 +339,12 @@ esp_err_t mqtt_init(
         .credentials.authentication.key =
             (const char*) cfg->credentials.authentication.key,
         .credentials.authentication.key_len = cfg->credentials.authentication.key_len,
-        .session.last_will = {
-            .topic = "v1/devices/me/attributes", /* Tópico LWT*/
-            .msg = "{\"status\":\"disconnected\"}", /* Mensaje LWT*/
-            .qos = 1, /* QoS del mensaje LWT*/
-            .retain = 0, /* No retener el mensaje LWT*/
-        },
+        // .session.last_will = {
+        //     .topic = "v1/devices/me/attributes", /* Tópico LWT*/
+        //     .msg = "{\"status\":\"disconnected\"}", /* Mensaje LWT*/
+        //     .qos = 1, /* QoS del mensaje LWT*/
+        //     .retain = 0, /* No retener el mensaje LWT*/
+        // },
     };
 
     client = esp_mqtt_client_init(&mqtt_cfg);
