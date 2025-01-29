@@ -11,11 +11,8 @@
 
 #define PROV_QR_VERSION         "v1"
 #define PROV_TRANSPORT_SOFTAP   "softap"
-#define QRCODE_BASE_URL         "https://espressif.github.io/esp-jumpstart/qrcode.html"
-/* Signal Provision done events on this event-group */
-#define PROVISION_DONE_EVENT (1 << 0)
 
-//[NVS]
+/*[NVS]*/
 typedef enum {
     THINGSBOARD_URL_OBTAINED,
 } provision_event_t;
@@ -26,8 +23,8 @@ typedef enum {
 #define EXAMPLE_PROV_SEC2_PWD               "abcd1234"
 
 /* This salt,verifier has been generated for username = "wifiprov" and password = "abcd1234"
- * IMPORTANT NOTE: For production cases, this must be unique to every device
- * and should come from device manufacturing partition.*/
+   IMPORTANT NOTE: For production cases, this must be unique to every device
+   and should come from device manufacturing partition.*/
 static const char sec2_salt[] = {
     0x03, 0x6e, 0xe0, 0xc7, 0xbc, 0xb9, 0xed, 0xa8, 0x4c, 0x9e, 0xac, 0x97, 0xd9, 0x3d, 0xec, 0xf4
 };
@@ -65,6 +62,9 @@ esp_err_t example_get_sec2_salt(const char **salt, uint16_t *salt_len);
 esp_err_t example_get_sec2_verifier(const char **verifier, uint16_t *verifier_len);
 #endif
 
+void event_handler_got_ip(void *arg, esp_event_base_t event_base, 
+                        int32_t event_id, void *event_data);
+
 void provision_event_handler(void* arg, esp_event_base_t event_base,
                           int32_t event_id, void* event_data);
 
@@ -72,12 +72,11 @@ void wifi_init_sta(void);
 
 void get_device_service_name(char *service_name, size_t max);
 
-esp_err_t thingsboard_url_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen,
+esp_err_t data_to_receive_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen,
                                           uint8_t **outbuf, ssize_t *outlen, void *priv_data);
 
-void wifi_prov_print_qr(const char *name, const char *username, const char *pop, const char *transport);
-
-esp_err_t parse_thingsboard_cfg(cJSON *root);
+esp_err_t thingsboard_cnf_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen,
+                                          uint8_t **outbuf, ssize_t *outlen, void *priv_data);
 
 thingsboard_cfg_t get_thingsboard_cfg();
 
@@ -85,4 +84,5 @@ wifi_credentials_t get_wifi_credentials();
 
 esp_err_t softAP_provision_init(thingsboard_cfg_t *thingsboard_cfg, wifi_credentials_t *wifi_credentials);
 
-#endif // SOFTAP_PROVISION_H
+#endif /* SOFTAP_PROVISION_H*/
+

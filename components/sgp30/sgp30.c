@@ -18,7 +18,7 @@
 ESP_EVENT_DEFINE_BASE (SGP30_EVENT);
 
 #define MEASURE_IN_FIRST_BASELINE_WAIT_TIME
-#define SGP30_MEASURING_INTERVAL       (1000 * 1000) // Measure each second
+#define SGP30_MEASURING_INTERVAL       (1000 * 1000) /* Measure each second */
 #define SGP30_BASELINE_VALIDITY_TIME   (7 * 24 * 60)
 #define SGP30_BASELINE_UPDATE_INTERVAL (30 * 1000000)
 #define SGP30_FIRST_BASELINE_WAIT_TIME (60 * 1000000)
@@ -73,11 +73,11 @@ static void sgp30_operation_task (
     ESP_ERROR_CHECK (sgp30_start ());
     while (true)
     {
-        // We wait for a signal from the timer or 1 sec as fallback
+        /* We wait for a signal from the timer or 1 sec as fallback*/
         ulTaskNotifyTake (pdTRUE, pdMS_TO_TICKS (10000));
         sgp30_elapsed_secs++;
         ESP_LOGI (TAG, "%" PRIu32 " seconds elapsed", sgp30_elapsed_secs);
-        // state_operation[sgp30_state].operation();
+        /* state_operation[sgp30_state].operation();*/
         switch (sgp30_state)
         {
         case SGP30_STATE_UNINITIAZED:
@@ -188,7 +188,7 @@ static void sgp30_operation_task (
                     &last_measurement,
                     &measurement_log
                 );
-                // We check if the semaphore is set without blocking
+                /* We check if the semaphore is set without blocking*/
                 if (xSemaphoreTake (sgp30_measurement_requested, 0) == pdTRUE)
                 {
                     sgp30_measurement_t mean;
@@ -231,24 +231,24 @@ static esp_err_t crc8_check (
 
     for (int i = 0; i < size; i++)
     {
-        // We XOR the first/next bit into the crc
+        /* We XOR the first/next bit into the crc*/
         crc ^= buffer[i];
         for (int j = 0; j < 8; j++)
         {
-            // Check if the MSB is set to 1
+            /* Check if the MSB is set to 1*/
             if (crc & 0x80)
             {
-                // If it is set to 1 get rid of the 1 and XOR
+                /* If it is set to 1 get rid of the 1 and XOR*/
                 crc = (crc << 1) ^ SGP30_CRC_8_POLY;
             }
             else
             {
-                // If it is not, just keep looking for a 1
+                /* If it is not, just keep looking for a 1*/
                 crc <<= 1;
             }
         }
     }
-    // Error if reminder is not zero.
+    /* Error if reminder is not zero.*/
     if (crc)
     {
         return ESP_ERR_INVALID_CRC;
@@ -308,16 +308,15 @@ static esp_err_t sgp30_execute_command (
         msg_buffer[3 * i + 4] = crc8_gen (msg_buffer + 2 + 3 * i, 2);
     }
 
-    // We need 2 bytes for each word and an extra one for the CRC
+    /* We need 2 bytes for each word and an extra one for the CRC*/
     size_t response_buffer_len = response_len * 3;
     uint8_t response_buffer[response_buffer_len];
 
     /* We return 2 words (16 bits/w) each followed by an 8 bit CRC
-     * checksum */
+       checksum */
 
-    // We need to make sure no two threads/processes attempt to
-    // interact with the device at the same time or in its calculation
-    // times.
+    /* We need to make sure no two threads/processes attempt to
+     interact with the device at the same time or in its calculation times.*/
     xSemaphoreTake (device_in_use_mutex, portMAX_DELAY);
 
     esp_err_t got_sent = i2c_master_transmit (dev_handle, msg_buffer, 2, -1);
@@ -327,8 +326,7 @@ static esp_err_t sgp30_execute_command (
         ESP_LOGE (TAG, "Could not write %x", command);
         return got_sent;
     }
-    // The sensor needs a max of 12 ms to respond to the I2C read
-    // header.
+    /* The sensor needs a max of 12 ms to respond to the I2C read header.*/
     vTaskDelay (pdMS_TO_TICKS (write_delay));
 
     if (response_buffer_len != 0)
@@ -348,7 +346,7 @@ static esp_err_t sgp30_execute_command (
 
         xSemaphoreGive (device_in_use_mutex);
 
-        // Check received CRC's
+        /* Check received CRC's*/
         for (int i = 0; i < response_len; i++)
         {
             ESP_RETURN_ON_ERROR (
@@ -359,7 +357,7 @@ static esp_err_t sgp30_execute_command (
             );
         }
         vTaskDelay (pdMS_TO_TICKS (read_delay));
-        // Store the output into a uint16
+        /* Store the output into a uint16*/
         for (int i = 0; i < response_len; i++)
         {
             response[i] = (uint16_t)(response_buffer[i * 3] << 8)
@@ -379,12 +377,12 @@ esp_err_t sgp30_init (
     sgp30_measurement_t *baseline
 )
 {
-    // Obtain the event loop from the main function
+    /* Obtain the event loop from the main function*/
     sgp30_event_loop = loop;
 
     sgp30_measurement_requested = xSemaphoreCreateBinary ();
 
-    // Set up a timer each second
+    /* Set up a timer each second*/
     esp_timer_create_args_t measurement_timer_args = {
         .callback = sgp30_on_sec_callback,
         .name = "each_second"
@@ -394,7 +392,7 @@ esp_err_t sgp30_init (
         &measurement_timer_args,
         &sgp30_measurement_timer_handle
     ));
-    // Set up a timer to send data
+    /* Set up a timer to send data*/
     esp_timer_create_args_t sgp30_req_measurement_timer_args = {
         .callback = sgp30_request_measurement_callback,
         .name = "request_measurement"
@@ -423,11 +421,11 @@ esp_err_t sgp30_init (
 
 esp_err_t sgp30_delete ()
 {
-    // [TODO]
+    /* [TODO]*/
     return ESP_OK;
 }
 
-// Created the device and allocate all needed structures.
+/* Created the device and allocate all needed structures.*/
 esp_err_t sgp30_device_create (
     i2c_master_bus_handle_t bus_handle,
     const uint16_t dev_addr,
@@ -440,16 +438,16 @@ esp_err_t sgp30_device_create (
         .scl_speed_hz = dev_speed,
     };
 
-    // Add device to the I2C bus
+    /* Add device to the I2C bus*/
 
     ESP_RETURN_ON_ERROR (
         i2c_master_bus_add_device (bus_handle, &dev_cfg, &sgp30_dev_handle),
         TAG,
         "Could not add device to I2C bus"
     );
-    // Create the Mutex for access to the device
-    // this will prevent asyncronous access to the resource
-    // resulting in undefined behaviour.
+    /* Create the Mutex for access to the device
+     this will prevent asyncronous access to the resource
+     resulting in undefined behaviour.*/
     device_in_use_mutex = xSemaphoreCreateMutex ();
     ESP_RETURN_ON_FALSE (
         device_in_use_mutex,
@@ -516,16 +514,16 @@ esp_err_t sgp30_init_air_quality (
         "Could not send INIT_AIR_QUALITY command"
     );
 
-    // ESP_RETURN_ON_ERROR(
-    //     esp_event_post_to(
-    //         sgp30_event_loop,
-    //         SGP30_EVENT,
-    //         SGP30_EVENT_IAQ_INITIALIZING,
-    //         NULL,
-    //         0,
-    //         portMAX_DELAY),
-    //     TAG, "Could not post SENSOR_EVENT_IAQ_INITIALIZING"
-    // );
+    /* ESP_RETURN_ON_ERROR(
+         esp_event_post_to(
+             sgp30_event_loop,
+             SGP30_EVENT,
+             SGP30_EVENT_IAQ_INITIALIZING,
+             NULL,
+             0,
+             portMAX_DELAY),
+         TAG, "Could not post SENSOR_EVENT_IAQ_INITIALIZING"
+     );*/
 
     return ESP_OK;
 }
@@ -689,10 +687,10 @@ esp_err_t sgp30_get_id ()
         "I2C get serial id write failed"
     );
 
-    // The sensor needs .5 ms to respond to the I2C read header.
+    /* The sensor needs .5 ms to respond to the I2C read header.*/
     vTaskDelay (pdMS_TO_TICKS (1));
 
-    // Copy the read ID to the provided id pointer
+    /* Copy the read ID to the provided id pointer*/
     id[0] = response[0];
     id[1] = response[1];
     id[2] = response[2];

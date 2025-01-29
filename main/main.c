@@ -1,3 +1,11 @@
+/*
+2025. Complutense University of Madrid.
+Final Project. Subjects: IoT Node Architecture, Networks, Protocols and Interfaces I, and Networks, Protocols and Interfaces II.
+Development of a system for measuring air quality (CO2 levels) in the classrooms of the Faculty of Computer Science at Complutense University of Madrid.
+
+Group 5. Members: Pablo Alcalde, Diego Alejandro de Celis, Diego Pellicer, Jaime Garzón.
+*/
+
 #include "cJSON.h"
 #include "driver/i2c_master.h"
 #include "driver/i2c_types.h"
@@ -18,6 +26,9 @@
 #include <esp_wifi.h>
 #include <string.h>
 #include "mbedtls/x509_crt.h"
+#include "power_manager.h"
+#include "wifi_power_manager.h"
+#include "sntp_sync.h"
 
 #include "esp_log.h"
 
@@ -27,7 +38,9 @@
 #define PROVISIONING_SOFTAP
 
 static char *TAG = "MAIN";
-// sgp30 required structures
+
+/* sgp30 required structures. Global variables*/
+
 i2c_master_bus_handle_t i2c_master_bus_handle;
 esp_event_loop_handle_t imc_event_loop_handle;
 SemaphoreHandle_t sgp30_req_measurement;
@@ -37,7 +50,8 @@ thingsboard_cfg_t thingsboard_cfg;
 wifi_credentials_t wifi_credentials;
 
 char *prepare_meassure_send(long ts, sgp30_measurement_t measurement);
-// wifi handler to take actions for the different wifi events
+
+/*wifi handler to take actions for the different wifi events*/
 static void wifi_event_handler(
     void *arg,
     esp_event_base_t event_base,
@@ -54,7 +68,7 @@ static void wifi_event_handler(
             esp_wifi_connect(); // Intenta la conexión
             break;
         case WIFI_EVENT_STA_CONNECTED:
-            retry_count = 0; // Reseteamos el contador de reintentos
+            retry_count = 0; /* Reseteamos el contador de reintentos*/
             ESP_LOGI(TAG, "Conectado exitosamente al WiFi");
             break;
         case WIFI_EVENT_STA_DISCONNECTED:
@@ -62,7 +76,7 @@ static void wifi_event_handler(
             if (retry_count < 5)
             {
                 int delay = (1 << retry_count)
-                            * 1000; // Backoff exponencial (1s, 2s, 4s...)
+                            * 1000; /* Backoff exponencial (1s, 2s, 4s...)*/
                 ESP_LOGI(TAG, "Reintentando en %d ms...", delay);
                 vTaskDelay(pdMS_TO_TICKS(delay)
                 ); // Esperar antes de intentar nuevamente
@@ -75,26 +89,12 @@ static void wifi_event_handler(
                     "No se pudo conectar al WiFi después de varios "
                     "intentos."
                 );
-                // Acciones adicionales si fallan todos los intentos
+                /* Acciones adicionales si fallan todos los intentos*/
             }
             break;
         default:
             break;
     }
-}
-
-static void event_handler_got_ip(
-    void *arg,
-    esp_event_base_t event_base,
-    int32_t event_id,
-    void *event_data
-)
-{
-    ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
-    ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
-
-    mqtt_init(imc_event_loop_handle, &thingsboard_cfg);
-    sgp30_start_measuring(DEFAULT_MEASURING_TIME);
 }
 
 static void sgp30_on_new_measurement(
@@ -114,10 +114,11 @@ static void sgp30_on_new_measurement(
         new_log_entry.measurement.eCO2,
         new_log_entry.measurement.TVOC
     );
-    // sgp30_measurement_enqueue(&new_log_entry, &sgp30_log);
+    
+    /* sgp30_measurement_enqueue(&new_log_entry, &sgp30_log);*/
     char* measurement_JSON_repr = prepare_meassure_send(new_log_entry.time, new_log_entry.measurement);
     mqtt_publish(measurement_JSON_repr, strlen(measurement_JSON_repr));
-    //  Send or store log_entry
+    /*Send or store log_entry*/
 }
 
 static void mqtt_on_new_interval(
@@ -212,7 +213,7 @@ void app_main(void)
     #else
 
     esp_event_loop_args_t imc_event_loop_args = {
-        // An event loop for sensoring related events
+        /* An event loop for sensoring related events*/
         .queue_size = 5,
         .task_name =
             "sgp30_event_loop_task", /* since it is a task it can be stopped */
@@ -225,7 +226,7 @@ void app_main(void)
     /* Initialize the event loop */
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event_handler, NULL);
-    esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, event_handler_got_ip, NULL);
+    //esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, event_handler_got_ip, NULL);
 
     ESP_ERROR_CHECK(storage_init());
 
@@ -234,7 +235,7 @@ void app_main(void)
         sgp30_device_create(i2c_master_bus_handle, SGP30_I2C_ADDR, 400000)
     );
 
-    // Set up event listeners for SGP30 module.
+    /* Set up event listeners for SGP30 module.*/
     for (int i = 0; i < sgp30_registered_events_len; i++)
     {
         ESP_ERROR_CHECK(
@@ -248,7 +249,7 @@ void app_main(void)
         );
     }
 
-    // Set up event listeenr for MQTT module
+    /* Set up event listeenr for MQTT module*/
     ESP_ERROR_CHECK(
         esp_event_handler_register_with(
             imc_event_loop_handle,
@@ -258,6 +259,9 @@ void app_main(void)
             NULL
         )
     );
+
+    power_manager_init();
+    wifi_power_save_init();
 
     esp_err_t got_thingboard_cfg = storage_get(&thingsboard_cfg);
     esp_err_t got_wifi_credentials = storage_get(&wifi_credentials);
@@ -271,12 +275,14 @@ void app_main(void)
     {
         #ifdef PROVISIONING_SOFTAP
         ESP_LOGI(TAG, "Device not provisioned");
-        //Start the init of the provision component, we actively wait it to finish the provision to continue
+        /*Start the init of the provision component, we actively wait it to finish the provision to continue*/
         ESP_ERROR_CHECK(softAP_provision_init(NULL, NULL));
         thingsboard_cfg = get_thingsboard_cfg();
         wifi_credentials = get_wifi_credentials();
         storage_set((const thingsboard_cfg_t*) &thingsboard_cfg);
         storage_set((const wifi_credentials_t*) &wifi_credentials);
+        ESP_LOGI(TAG, "%s", thingsboard_cfg.address.uri);
+        ESP_LOGI(TAG, "%s", thingsboard_cfg.verification.certificate);
         #else
         ESP_LOGE(TAG, "Device not provisioned");
         #endif
@@ -287,11 +293,16 @@ void app_main(void)
         ESP_ERROR_CHECK(softAP_provision_init(&thingsboard_cfg, &wifi_credentials));
     }
 
-    // At this point a valid time is required
-    // We start the sensor
+    init_sntp();
+
+    /* At this point a valid time is required*/
+    /* We start the sensor*/
     sgp30_timed_measurement_t maybe_baseline;
     time_t time_now;
+    struct tm timeinfo;
+
     time(&time_now);
+    localtime_r(&time_now, &timeinfo);
     if (ESP_OK == storage_get(&maybe_baseline)
         && !sgp30_is_baseline_expired(maybe_baseline.time, time_now))
     {
@@ -300,8 +311,14 @@ void app_main(void)
     {
         sgp30_init(imc_event_loop_handle, NULL);
     }
-    // Esto debería de iniciarse al tener un valor del intervalo, por MQTT
-    // (atributo compartido creo) Se inicia solo al mandar un evento
-    // SGP30_EVENT_NEW_INTERVAL
+    /* Esto debería de iniciarse al tener un valor del intervalo, por MQTT*/
+    /* (atributo compartido creo) Se inicia solo al mandar un evento*/
+    /* SGP30_EVENT_NEW_INTERVAL*/
+    
+    //Tras haber sincronizado la hora con sntp ajustamos la hora de entrada en deep sleep
+    power_manager_set_sntp_time(&timeinfo);
+    mqtt_init(imc_event_loop_handle, &thingsboard_cfg);
+    wifi_set_power_mode(WIFI_POWER_MODE_MAX_MODEM);
+    sgp30_start_measuring(send_time);
     #endif
 }

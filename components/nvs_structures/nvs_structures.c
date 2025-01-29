@@ -29,7 +29,7 @@ static esp_err_t nvs_get_thingsboard_cfg(thingsboard_cfg_t *cfg)
     {
         return ESP_FAIL;
     }
-    // Get address
+    /* Get address*/
     size_t uri_len;
     if (nvs_get_str(storage_handle, NVS_THINGSBOARD_URI_KEY, NULL, &uri_len)
         != ESP_OK)
@@ -56,7 +56,7 @@ static esp_err_t nvs_get_thingsboard_cfg(thingsboard_cfg_t *cfg)
         return ESP_FAIL;
     }
 
-    // Get verification
+    /* Get verification*/
     size_t ca_cert_len;
     if (nvs_get_str(
             storage_handle,
@@ -86,7 +86,7 @@ static esp_err_t nvs_get_thingsboard_cfg(thingsboard_cfg_t *cfg)
         ESP_LOGE(TAG, "Could not get thingsboard ca certificate");
         return ESP_FAIL;
     }
-    // Get credentials
+    /* Get credentials*/
     size_t dev_cert_len;
     if (nvs_get_str(
             storage_handle,
@@ -171,7 +171,7 @@ static esp_err_t nvs_set_thingsboard_cfg(const thingsboard_cfg_t *thingsboard_cf
     nvs_handle_t storage_handle;
     esp_err_t err;
 
-    // Open namespace
+    /* Open namespace*/
     err = nvs_open(NVS_THINGSBOARD_NAMESPACE, NVS_READWRITE, &storage_handle);
     if (err != ESP_OK)
     {
@@ -179,7 +179,7 @@ static esp_err_t nvs_set_thingsboard_cfg(const thingsboard_cfg_t *thingsboard_cf
         return err;
     }
 
-    // Set address
+    /* Set address*/
     err = nvs_set_str(
         storage_handle,
         NVS_THINGSBOARD_URI_KEY,
@@ -204,7 +204,7 @@ static esp_err_t nvs_set_thingsboard_cfg(const thingsboard_cfg_t *thingsboard_cf
         return err;
     }
 
-    // Set verification
+    /* Set verification*/
     err = nvs_set_str(
         storage_handle,
         NVS_THINGSBOARD_CACERT_KEY,
@@ -217,7 +217,7 @@ static esp_err_t nvs_set_thingsboard_cfg(const thingsboard_cfg_t *thingsboard_cf
         return err;
     }
 
-    // Set credentials
+    /* Set credentials*/
     err = nvs_set_str(
         storage_handle,
         NVS_THINGSBOARD_DEVCERT_KEY,
@@ -250,7 +250,7 @@ static esp_err_t nvs_set_thingsboard_cfg(const thingsboard_cfg_t *thingsboard_cf
         return err;
     }
 
-    // Commit and close
+    /* Commit and close*/
     err = nvs_commit(storage_handle);
     if (err != ESP_OK)
     {
@@ -268,7 +268,7 @@ static esp_err_t nvs_set_sgp30_baseline(
     nvs_handle_t storage_handle;
     esp_err_t err;
 
-    // open namespace
+    /* open namespace*/
     err =
         nvs_open(NVS_SGP30_STORAGE_NAMESPACE, NVS_READWRITE, &storage_handle);
     if (err != ESP_OK)
@@ -289,7 +289,7 @@ static esp_err_t nvs_set_sgp30_baseline(
         return err;
     }
 
-    // Commit and close
+    /* Commit and close*/
     err = nvs_commit(storage_handle);
     if (err != ESP_OK)
     {
@@ -306,7 +306,7 @@ static esp_err_t nvs_set_wifi_credentials(const wifi_credentials_t *wifi_credent
     nvs_handle_t storage_handle;
     esp_err_t err;
 
-    // open namespace
+    /* open namespace*/
     err = nvs_open(
         NVS_WIFI_CREDENTIALS_NAMESPACE,
         NVS_READWRITE,
@@ -318,7 +318,7 @@ static esp_err_t nvs_set_wifi_credentials(const wifi_credentials_t *wifi_credent
         return err;
     }
 
-    // Set SSID
+    /* Set SSID*/
     err = nvs_set_str(
         storage_handle,
         NVS_WIFI_CREDENTIALS_SSID_KEY,
@@ -331,7 +331,7 @@ static esp_err_t nvs_set_wifi_credentials(const wifi_credentials_t *wifi_credent
         return err;
     }
 
-    // Set password
+    /* Set password*/
     err = nvs_set_str(
         storage_handle,
         NVS_WIFI_CREDENTIALS_PASS_KEY,
@@ -360,7 +360,7 @@ static esp_err_t nvs_get_wifi_credentials(wifi_credentials_t *wifi_credentials)
     nvs_handle_t storage_handle;
     esp_err_t err;
 
-    // Open handle
+    /* Open handle*/
     if (nvs_open(NVS_WIFI_CREDENTIALS_NAMESPACE, NVS_READONLY, &storage_handle)
         != ESP_OK)
     {
@@ -368,7 +368,7 @@ static esp_err_t nvs_get_wifi_credentials(wifi_credentials_t *wifi_credentials)
         return ESP_FAIL;
     }
 
-    // Get SSID
+    /* Get SSID*/
     size_t wifi_credentials_ssid_len;
     err = nvs_get_str(
         storage_handle,
@@ -395,7 +395,7 @@ static esp_err_t nvs_get_wifi_credentials(wifi_credentials_t *wifi_credentials)
         return err;
     }
 
-    // Get pass
+    /* Get pass*/
     size_t wifi_credentials_pass_len;
     err = nvs_get_str(
         storage_handle,
@@ -421,7 +421,7 @@ static esp_err_t nvs_get_wifi_credentials(wifi_credentials_t *wifi_credentials)
         ESP_LOGE(TAG, "Could not get wifi credentials pass from NVS");
         return err;
     }
-    // Close handle
+    /* Close handle*/
     nvs_close(storage_handle);
 
     return ESP_OK;
@@ -438,7 +438,7 @@ static esp_err_t nvs_get_sgp30_baseline(
         ESP_LOGE(TAG, "Could not open sgp30 namespace in NVS");
         return err;
     }
-    // Get
+    /* Get*/
     size_t timed_measurement_len;
     err = nvs_get_blob(
         storage_handle,

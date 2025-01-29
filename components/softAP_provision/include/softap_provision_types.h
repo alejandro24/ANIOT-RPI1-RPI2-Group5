@@ -6,4 +6,4 @@ typedef struct {
     char ssid[SOFT_AP_PROVISION_TYPES_MAX_SSID_LEN];
     char password[SOFT_AP_PROVISION_TYPES_MAX_PASS_LEN];
 } wifi_credentials_t;
-#endif // !SOFT_AP_PROVISION_TYPES_H
+#endif /* !SOFT_AP_PROVISION_TYPES_H*/

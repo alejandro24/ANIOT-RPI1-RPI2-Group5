@@ -19,16 +19,16 @@ ESP32 development board. the firmware ESP32-WROOM-32 has been used for developin
 Air quality sensor. We have used the SGP30 sensor to measure CO2 levels (please refer to datasheet ![image](https://github.com/user-attachments/assets/487a4db2-32e9-4cf4-b931-e7d86eef890f)).
 USB cable for flashing firmware.
 
-Software:
+###Software:
 ESP-IDF v5.x or later.
 Python 3.8+
 Visual Studio Code software.
 
-Tools:
+###Tools:
 Text editor or IDE with ESP-IDF support 
 Serial monitor
 
-Project Management:
+###Project Management:
 A GitHub repository has been created to follow a collaborative working model. Additionally, a Project in GitHub has been defined to help team members to track, prioritise and identify potential delays/stoppers to address accordingly. Please, refers to the Github site: https://github.com/alejandro24/ANIOT-RPI1-RPI2-Group5
 
 # _Design_
@@ -68,14 +68,15 @@ Once one measurement has been completed, we will check if WiFi is connected. If 
 ## Workflow evolution
 Once further analysis and research has been done, we evolved and updated the initial workflow diagram as follows:
 - HOUR buffer to keep the average value for last hour measures has been removed as the total memory consumption of just having MINUTES buffer is manageable.
-- 
+- Measure frequency was reduced.
  
-
-
 
 ## Components
 The following components have been considered and deployed for this system:
 - **MQTT controller**:
+  This component develops all the MQTT related functionality.
+  
+  The following procedures (void) and functions have been defined for this component:
    - void received_data(cJSON *root, char* topic, size_t len): Function to work with the data received from the subscribed topics.
    - bool is_provision(cJSON *root, char* topic, size_t len): Function to check if the device is being provision with his access token in this case the access token is store.
    - void log_error_if_nonzero(const char *message, int error_code):
@@ -85,6 +86,9 @@ The following components have been considered and deployed for this system:
    - esp_err_t mqtt_publish(char* data, size_t data_len);
      
 - **SGP30**
+  Component in charge of developing SGP30 chipset functionality. All the required air quality mesuarement capabilities are defined here.
+
+  These are the defined functions:
    - bool sgp30_is_baseline_expired(time_t stored, time_t current): This function checks if the baseline is expired
    - esp_err_t sgp30_measurement_log_get_mean (esp_err_t sgp30_measurement_log_get_mean): This function calculates the mean      of the measurements in the log.
    - esp_err_t sgp30_measurement_log_enqueue(const sgp30_measurement_t *m,sgp30_measurement_log_t *q): This function              enqueues a measurement in the log.
@@ -105,13 +109,19 @@ The following components have been considered and deployed for this system:
    - esp_err_t sgp30_set_baseline_and_post_esp_event();
    - esp_err_t sgp30_get_id(): This function communicates with the SGP30 sensor over I2C to obtain its unique identifier.
       
-- **SNTP SYNC**
+- **SNTP**
+  Component to get time from SNTP and apply this to the ESP32 firmware and developed system.
+
+  Procedures and functions are the following:
    - void sntp_sync_time(struct timeval *tv);
    - void time_sync_notification_cb(struct timeval *tv);
    - static void print_servers(void);
    - static void obtain_time(void);
-   -  
+     
 - **SoftAP provision**
+  Componente que desarrolla la función de provisionar la información necesaria para conectar el ESP32 con la información requerida (URL de Thingsboard, credenciales Wi-Fi).
+
+  Las funciones y procedimientos desarrollados son los siguientes:
    - esp_err_t example_get_sec2_salt(const char **salt, uint16_t *salt_len);
    - esp_err_t example_get_sec2_verifier(const char **verifier, uint16_t *verifier_len);
    - void provision_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
@@ -125,18 +135,24 @@ The following components have been considered and deployed for this system:
    - esp_err_t softAP_provision_init(thingsboard_cfg_t *thingsboard_cfg, wifi_credentials_t *wifi_credentials);
      
 - **thingsboard**
-- **wifi**
+- 
+- **wifi Power Manager**
+  Component to manage Wi-Fi Power and save power when needed.
+
+  Functions defined are the follow:
+  - esp_err_t wifi_power_save_init(void). Function to initialize the Wi-Fi power manager.
+  - esp_err_t wifi_set_power_mode(wifi_power_mode_t mode). Function to set the Wi-Fi power mode
+    
 - **Power Manager**
+   Component to manage ESP32 Power configuration. It will be switched off from 22 pm to 8 am and works from 8 am to 22 pm.
+
+  Functions and procedures defined are the follow:
    -  ESP_EVENT_DECLARE_BASE(POWER_MANAGER_EVENT);
    -  void power_manager_init();
    -  esp_err_t power_manager_set_sntp_time(struct tm *timeinfo);
    -  void power_manager_enter_deep_sleep();
    -  void power_manager_deinit();
 
-# _Deployement_
-
-# _Testing_and Troubleshooting_
-_
 ## QUICK START
 git clone
 Configure WiFi credentials and ThingsBoard settings
