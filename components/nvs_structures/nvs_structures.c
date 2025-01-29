@@ -221,7 +221,7 @@ static esp_err_t nvs_set_thingsboard_cfg(const thingsboard_cfg_t *thingsboard_cf
     err = nvs_set_str(
         storage_handle,
         NVS_THINGSBOARD_DEVCERT_KEY,
-        thingsboard_cfg->credentials.authentication.certificate
+        thingsboard_cfg->credentials.authentication.key
     );
     if (err != ESP_OK)
     {
@@ -238,7 +238,7 @@ static esp_err_t nvs_set_thingsboard_cfg(const thingsboard_cfg_t *thingsboard_cf
     err = nvs_set_str(
         storage_handle,
         NVS_THINGSBOARD_CHAINCERT_KEY,
-        thingsboard_cfg->credentials.authentication.key
+        thingsboard_cfg->credentials.authentication.certificate
     );
     if (err != ESP_OK)
     {
