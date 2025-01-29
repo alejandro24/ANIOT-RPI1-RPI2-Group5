@@ -476,7 +476,7 @@ esp_err_t sgp30_start_measuring(
     return esp_timer_start_periodic (sgp30_req_measurement_timer_handle, ((uint64_t) s) * 1000000);
 }
 esp_err_t sgp30_restart_measuring (
-    uint32_t s
+    uint64_t s
 )
 {
     if (s == sgp30_measurement_timer_interval)
