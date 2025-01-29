@@ -31,7 +31,7 @@
 static const char *TAG = "mqtt_thingsboard";
 esp_event_loop_handle_t event_loop;
 esp_mqtt_client_handle_t client;
-static SemaphoreHandle_t is_provisioned;  /* Cola para manejar eventos*/
+static SemaphoreHandle_t is_provisioned;  /* Queue to handle events*/
 int request_count = 0;
 
 ESP_EVENT_DEFINE_BASE(MQTT_THINGSBOARD_EVENT);
@@ -51,9 +51,9 @@ static void mqtt_connected_event_handler(
     topic = (char*) malloc(required_size);
     if (topic) {
         snprintf(topic, required_size, "%s%d", DEVICE_ATTRIBUTES_REQUEST, request_count);
-        /* Usar topic*/
+        /*Use topic*/
         esp_mqtt_client_publish(client, topic, "{\"sharedKeys\":\"send_time\"}", 0, 1, 0);
-        free(topic); /* Liberar memoria cuando ya no se necesite*/
+        free(topic); /* Free memory when no longer needed*/
     }
 }
 
