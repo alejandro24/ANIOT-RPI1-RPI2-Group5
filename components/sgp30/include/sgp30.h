@@ -192,7 +192,7 @@ esp_err_t sgp30_start_measuring(uint32_t s);
  *   - ESP_FAIL : if the timer could not be restarted
  */
 
-esp_err_t sgp30_restart_measuring(uint64_t new_measurement_interval);
+esp_err_t sgp30_restart_measuring(uint32_t s);
 /**
  * @brief Initiates the measurement capabilities of the SGP30 device.
  *

@@ -170,8 +170,8 @@ void received_data(cJSON *root, char* topic, size_t topic_len){
             if(cJSON_HasObjectItem(shared, "send_time")){
                 item = cJSON_GetObjectItem(shared, "send_time");
                 if(cJSON_IsNumber(item)){
-                    ESP_LOGI(TAG, "Posteando nuevo tiempo de envio");
                     send_time = item->valueint;
+                    ESP_LOGI(TAG, "Posteando nuevo tiempo de envio %d", send_time);
                     ESP_ERROR_CHECK(
                         esp_event_post_to(event_loop, MQTT_THINGSBOARD_EVENT, MQTT_NEW_SEND_TIME, &send_time, sizeof(send_time), portMAX_DELAY));
                 }

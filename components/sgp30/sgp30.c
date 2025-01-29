@@ -29,6 +29,7 @@ static i2c_master_dev_handle_t sgp30_dev_handle;
 static esp_timer_handle_t sgp30_req_measurement_timer_handle;
 static sgp30_state_t sgp30_state;
 static uint32_t sgp30_elapsed_secs;
+static uint32_t sgp30_measurement_timer_interval;
 static TaskHandle_t sgp30_operation_task_handle;
 static esp_timer_handle_t sgp30_measurement_timer_handle;
 static SemaphoreHandle_t sgp30_measurement_requested;
@@ -471,25 +472,30 @@ esp_err_t sgp30_start_measuring(
     uint32_t s
 )
 {
+    sgp30_measurement_timer_interval = s;
     return esp_timer_start_periodic (sgp30_req_measurement_timer_handle, ((uint64_t) s) * 1000000);
 }
 esp_err_t sgp30_restart_measuring (
     uint32_t s
 )
 {
+    if (s == sgp30_measurement_timer_interval)
+    {
+        return ESP_OK;
+    }
     uint64_t new_measurement_interval = ((uint64_t) s) * 1000000;
     if (esp_timer_is_active (sgp30_req_measurement_timer_handle))
     {
         return esp_timer_restart (
             sgp30_req_measurement_timer_handle,
-            new_measurement_interval * 1000000
+            new_measurement_interval
         );
     }
     else
     {
         return esp_timer_start_periodic (
             sgp30_req_measurement_timer_handle,
-            new_measurement_interval * 1000000
+            new_measurement_interval
         );
     }
 }

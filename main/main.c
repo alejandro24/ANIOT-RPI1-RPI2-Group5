@@ -128,9 +128,9 @@ static void mqtt_on_new_interval(
     void *event_data
 )
 {
-    ESP_LOGI(TAG, "Cambiando intervalo de envio");
     send_time = *((int *)event_data);
-    sgp30_restart_measuring((uint64_t) send_time);
+    ESP_LOGI(TAG, "Cambiando intervalo de envio %d segundos", send_time);
+    sgp30_restart_measuring( send_time);
 }
 
 static void sntp_on_sync_time(
