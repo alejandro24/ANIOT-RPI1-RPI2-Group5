@@ -22,7 +22,7 @@ static int64_t start_time = 0;
 
 static void deep_sleep_timer_callback(void *arg)
 {
-    /*Get the final timestamp when the timer is triggered.
+    /*Get the final timestamp when the timer is triggered*/.
 
     int64_t end_time = esp_timer_get_time();
 
@@ -58,7 +58,7 @@ void power_manager_init()
     };
     ESP_ERROR_CHECK(esp_pm_configure(&pm_config));
     ESP_LOGI(TAG, "Configured automatic power manager");
-#endif // CONFIG_PM_ENABLE
+#endif /* CONFIG_PM_ENABLE*/
 
     uint64_t sleep_hours = DEFAULT_SLEEP_HOURS * CONVERSION_HOURS_TO_MICROSECONDS;
     uint64_t active_hours = DEFAULT_ACTIVE_HOURS * CONVERSION_HOURS_TO_MICROSECONDS;
