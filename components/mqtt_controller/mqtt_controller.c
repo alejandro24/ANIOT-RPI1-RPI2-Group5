@@ -31,7 +31,7 @@
 static const char *TAG = "mqtt_thingsboard";
 esp_event_loop_handle_t event_loop;
 esp_mqtt_client_handle_t client;
-static SemaphoreHandle_t is_provisioned;  // Cola para manejar eventos
+static SemaphoreHandle_t is_provisioned;  /* Cola para manejar eventos*/
 int request_count = 0;
 
 ESP_EVENT_DEFINE_BASE(MQTT_THINGSBOARD_EVENT);
@@ -51,9 +51,9 @@ static void mqtt_connected_event_handler(
     topic = (char*) malloc(required_size);
     if (topic) {
         snprintf(topic, required_size, "%s%d", DEVICE_ATTRIBUTES_REQUEST, request_count);
-        // Usar topic
+        /* Usar topic*/
         esp_mqtt_client_publish(client, topic, "{\"sharedKeys\":\"send_time\"}", 0, 1, 0);
-        free(topic); // Liberar memoria cuando ya no se necesite
+        free(topic); /* Liberar memoria cuando ya no se necesite*/
     }
 }
 
@@ -190,7 +190,7 @@ bool is_provision(cJSON *root, char* topic, size_t topic_len){
         receive = cJSON_GetObjectItem(root, "status");
         if(strcmp(receive->valuestring, "SUCCESS") == 0){
             receive = cJSON_GetObjectItem(root, "credentialsValue");
-            //mqtt_set_access_token(receive->valuestring, strlen(receive->valuestring));
+            /*mqtt_set_access_token(receive->valuestring, strlen(receive->valuestring));*/
             cJSON_Delete(receive);
             return true;
         }
@@ -271,50 +271,51 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
     }
 }
 
-//esp_err_t mqtt_provision(thingsboard_url_t thingsboard_url)
-//{
-//    esp_mqtt_client_config_t mqtt_cfg = {
-//        .broker.address.uri = thingsboard_url,
-//        .broker.address.port = 8883,
-//        //.broker.verification.certificate = (const char *)server_pem_start,
-//        //.credentials.authentication.certificate = (const char *) deviceKey_pem_start,
-//        //.credentials.authentication.key = (const char *) chain_pem_start,
-//    };
-//
-//    is_provisioned = xSemaphoreCreateBinary();
-//
-//    client = esp_mqtt_client_init(&mqtt_cfg);
-//    if (client == NULL) {
-//        return ESP_FAIL;
-//    }
-//
-//    ESP_RETURN_ON_ERROR(
-//        esp_mqtt_client_register_event(
-//            client,
-//            ESP_EVENT_ANY_ID,
-//            mqtt_event_handler,
-//            NULL
-//        ),
-//        TAG,
-//        "could not register handler"
-//    );
-//
-//    ESP_RETURN_ON_ERROR(
-//        esp_mqtt_client_start(client),
-//        TAG,
-//        "could not start provision client"
-//    );
-//
-//    if(xSemaphoreTake(is_provisioned, MAX_PROVISIONING_WAIT) != pdTRUE) {
-//        esp_mqtt_client_stop(client);
-//        esp_mqtt_client_destroy(client);
-//        return ESP_FAIL;
-//    }
-//
-//    esp_mqtt_client_stop(client);
-//    esp_mqtt_client_destroy(client);
-//    return ESP_OK;
-//}
+/*esp_err_t mqtt_provision(thingsboard_url_t thingsboard_url)
+{
+    esp_mqtt_client_config_t mqtt_cfg = {
+        .broker.address.uri = thingsboard_url,
+        .broker.address.port = 8883,
+        //.broker.verification.certificate = (const char *)server_pem_start,
+        //.credentials.authentication.certificate = (const char *) deviceKey_pem_start,
+        //.credentials.authentication.key = (const char *) chain_pem_start,
+    };
+
+    is_provisioned = xSemaphoreCreateBinary();
+
+    client = esp_mqtt_client_init(&mqtt_cfg);
+    if (client == NULL) {
+        return ESP_FAIL;
+    }
+
+    ESP_RETURN_ON_ERROR(
+        esp_mqtt_client_register_event(
+            client,
+            ESP_EVENT_ANY_ID,
+            mqtt_event_handler,
+            NULL
+        ),
+        TAG,
+        "could not register handler"
+    );
+
+    ESP_RETURN_ON_ERROR(
+        esp_mqtt_client_start(client),
+        TAG,
+        "could not start provision client"
+    );
+
+    if(xSemaphoreTake(is_provisioned, MAX_PROVISIONING_WAIT) != pdTRUE) {
+        esp_mqtt_client_stop(client);
+        esp_mqtt_client_destroy(client);
+        return ESP_FAIL;
+    }
+
+    esp_mqtt_client_stop(client);
+    esp_mqtt_client_destroy(client);
+    return ESP_OK;
+}
+*/
 
 esp_err_t mqtt_init(
     esp_event_loop_handle_t loop,
@@ -336,10 +337,10 @@ esp_err_t mqtt_init(
             (const char*) cfg->credentials.authentication.key,
         .credentials.authentication.key_len = cfg->credentials.authentication.key_len,
         .session.last_will = {
-            .topic = "v1/devices/me/attributes", // Tópico LWT
-            .msg = "{\"status\":\"disconnected\"}", // Mensaje LWT
-            .qos = 1, // QoS del mensaje LWT
-            .retain = 0, // No retener el mensaje LWT
+            .topic = "v1/devices/me/attributes", /* Tópico LWT*/
+            .msg = "{\"status\":\"disconnected\"}", /* Mensaje LWT*/
+            .qos = 1, /* QoS del mensaje LWT*/
+            .retain = 0, /* No retener el mensaje LWT*/
         },
     };
 

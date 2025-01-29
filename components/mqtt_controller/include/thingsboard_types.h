@@ -26,4 +26,4 @@ typedef struct {
     thingsboard_credentials_t credentials;
 } thingsboard_cfg_t;
 
-#endif // !THINGSBOARD_TYPES_H
+#endif /* !THINGSBOARD_TYPES_H*/
