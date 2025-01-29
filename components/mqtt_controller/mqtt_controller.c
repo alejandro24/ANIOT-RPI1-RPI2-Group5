@@ -336,12 +336,12 @@ esp_err_t mqtt_init(
         .credentials.authentication.key =
             (const char*) cfg->credentials.authentication.key,
         .credentials.authentication.key_len = cfg->credentials.authentication.key_len,
-        // .session.last_will = {
-        //     .topic = "v1/devices/me/attributes", /* Tópico LWT*/
-        //     .msg = "{\"status\":\"disconnected\"}", /* Mensaje LWT*/
-        //     .qos = 1, /* QoS del mensaje LWT*/
-        //     .retain = 0, /* No retener el mensaje LWT*/
-        // },
+        .session.last_will = {
+             .topic = "v1/devices/me/attributes", /* Tópico LWT*/
+             .msg = "{\"status\":\"disconnected\"}", /* Mensaje LWT*/
+             .qos = 1, /* QoS del mensaje LWT*/
+             .retain = 0, /* No retener el mensaje LWT*/
+        },
     };
 
     client = esp_mqtt_client_init(&mqtt_cfg);
