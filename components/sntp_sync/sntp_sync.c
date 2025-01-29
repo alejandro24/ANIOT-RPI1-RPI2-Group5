@@ -46,17 +46,18 @@ void obtain_time(void)
      */
     ESP_LOGI(TAG, "Initializing SNTP");
     esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG(CONFIG_SNTP_TIME_SERVER);
-    config.start = false;                       // start SNTP service explicitly (after connecting)
-    config.server_from_dhcp = true;             // accept NTP offers from DHCP server, if any (need to enable *before* connecting)
-    config.renew_servers_after_new_IP = true;   // let esp-netif update configured SNTP server(s) after receiving DHCP lease
-    config.index_of_first_server = 1;           // updates from server num 1, leaving server 0 (from DHCP) intact
-    // configure the event on which we renew servers
+    config.start = false;                       /* start SNTP service explicitly (after connecting)*/
+    config.server_from_dhcp = true;             /* accept NTP offers from DHCP server, if any (need to enable *before* connecting)*/
+    config.renew_servers_after_new_IP = true;   /* let esp-netif update configured SNTP server(s) after receiving DHCP lease*/
+    config.index_of_first_server = 1;           /* updates from server num 1, leaving server 0 (from DHCP) intact*/
+    /* configure the event on which we renew servers*/
+    
 #ifdef CONFIG_EXAMPLE_CONNECT_WIFI
     config.ip_event_to_renew = IP_EVENT_STA_GOT_IP;
 #else
     config.ip_event_to_renew = IP_EVENT_ETH_GOT_IP;
 #endif
-    config.sync_cb = time_sync_notification_cb; // only if we need the notification function
+    config.sync_cb = time_sync_notification_cb; /* only if we need the notification function*/
     esp_netif_sntp_init(&config);
 
 #endif /* LWIP_DHCP_GET_NTP_SRV */
@@ -69,7 +70,7 @@ void obtain_time(void)
      * (statically assigned IPv6 address is also possible)
      */
     ip_addr_t ip6;
-    if (ipaddr_aton("2a01:3f7::1", &ip6)) {    // ipv6 ntp source "ntp.netnod.se"
+    if (ipaddr_aton("2a01:3f7::1", &ip6)) {    /* ipv6 ntp source "ntp.netnod.se"*/
         esp_sntp_setserver(2, &ip6);
     }
 #endif  /* LWIP_IPV6 */
@@ -87,7 +88,7 @@ void obtain_time(void)
      */
     esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG(CONFIG_SNTP_TIME_SERVER);
 #endif
-    config.sync_cb = time_sync_notification_cb;     // Note: This is only needed if we want
+    config.sync_cb = time_sync_notification_cb;     /* Note: This is only needed if we want*/
 #ifdef CONFIG_SNTP_TIME_SYNC_METHOD_SMOOTH
     config.smooth_sync = true;
 #endif
@@ -95,7 +96,7 @@ void obtain_time(void)
     esp_netif_sntp_init(&config);
 #endif
 
-    // wait for time to be set
+    /* wait for time to be set*/
     time_t now = 0;
     struct tm timeinfo = { 0 };
     int retry = 0;
@@ -124,17 +125,18 @@ void init_sntp(esp_event_loop_handle_t loop)
     struct tm timeinfo;
     time(&now);
     localtime_r(&now, &timeinfo);
-    // Is time set? If not, tm_year will be (1970 - 1900).
+    /* Is time set? If not, tm_year will be (1970 - 1900).*/
+    
     if (timeinfo.tm_year < (2016 - 1900)) {
         ESP_LOGI(TAG, "Time is not set yet. Connecting to WiFi and getting time over NTP.");
         obtain_time();
-        // update 'now' variable with current time
+        / update 'now' variable with current time*/
         time(&now);
     }
 #ifdef CONFIG_SNTP_TIME_SYNC_METHOD_SMOOTH
     else {
-        // add 500 ms error to the current system time.
-        // Only to demonstrate a work of adjusting method!
+        /* add 500 ms error to the current system time.
+         Only to demonstrate a work of adjusting method!*/
         {
             ESP_LOGI(TAG, "Add a error for test adjtime");
             struct timeval tv_now;
@@ -147,14 +149,14 @@ void init_sntp(esp_event_loop_handle_t loop)
 
         ESP_LOGI(TAG, "Time was set, now just adjusting it. Use SMOOTH SYNC method.");
         obtain_time();
-        // update 'now' variable with current time
+        /* update 'now' variable with current time*/
         time(&now);
     }
 #endif
 
     char strftime_buf[64];
     
-    //Configuration of time in Madrid.
+    /*Configuration of time in Madrid.*/
     setenv("TZ","CET-1CEST, M3.5.0,M10.5.0/3",1);
     tzset();
     localtime_r(&now, &timeinfo);

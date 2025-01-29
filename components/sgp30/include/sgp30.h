@@ -6,9 +6,9 @@
 #include "esp_event_base.h"
 #include "sgp30_types.h"
 
-#define SGP30_I2C_ADDR   ((uint8_t)0x58) /* I2C address of SGP30 sensor */
-#define SGP30_CRC_8_POLY ((uint8_t)0x31) /* CRC-8 generator polynomial */
-#define SGP30_CRC_8_INIT ((uint8_t)0xFF) /* CRC-8 generator polynomial */
+#define SGP30_I2C_ADDR   ((uint8_t)0x58) /*!< I2C address of SGP30 sensor */
+#define SGP30_CRC_8_POLY ((uint8_t)0x31) /*!< CRC-8 generator polynomial */
+#define SGP30_CRC_8_INIT ((uint8_t)0xFF) /*!< CRC-8 generator polynomial */
 
 #define ZERO_OUT_QUEUE_ON_DEQUEUE
 
@@ -107,6 +107,7 @@ esp_err_t sgp30_measurement_log_enqueue(
     const sgp30_measurement_t *m,
     sgp30_measurement_log_t *q
 );
+
 /**
  * @brief Dequeues a measurement from the log.
  * This function dequeues a measurement from the log.
@@ -138,6 +139,7 @@ esp_err_t sgp30_device_create(
     const uint16_t dev_addr,
     const uint32_t dev_speed
 );
+
 /**
  * @brief Deletes the SGP30 device instance.
  *
@@ -152,6 +154,7 @@ esp_err_t sgp30_device_create(
  *     - ESP_ERR_INVALID_ARG: Invalid argument
  *     - ESP_FAIL: Failed to delete the device
  */
+
 esp_err_t sgp30_device_delete(i2c_master_dev_handle_t dev_handle);
 /**
  * @brief Initializes the SGP30 device.
@@ -167,6 +170,7 @@ esp_err_t sgp30_device_delete(i2c_master_dev_handle_t dev_handle);
  *     - ESP_ERR_INVALID_ARG: Invalid argument
  *     - ESP_FAIL: Failed to initialize the device
  */
+
 esp_err_t
 sgp30_init(esp_event_loop_handle_t loop, sgp30_measurement_t *baseline);
 /**
@@ -177,6 +181,7 @@ sgp30_init(esp_event_loop_handle_t loop, sgp30_measurement_t *baseline);
  *  - ESP_OK : if the timer was started successfully
  *  - ESP_FAIL : if the timer could not be started
  */
+
 esp_err_t sgp30_start_measuring(uint32_t s);
 /**
  * @brief Restarts the measurement timer with a new interval.
@@ -186,6 +191,7 @@ esp_err_t sgp30_start_measuring(uint32_t s);
  *   - ESP_OK : if the timer was restarted successfully
  *   - ESP_FAIL : if the timer could not be restarted
  */
+
 esp_err_t sgp30_restart_measuring(uint64_t new_measurement_interval);
 /**
  * @brief Initiates the measurement capabilities of the SGP30 device.
@@ -199,6 +205,7 @@ esp_err_t sgp30_restart_measuring(uint64_t new_measurement_interval);
  *     - ESP_FAIL: Communication with the sensor failed
  *     - ESP_ERR_INVALID_CRC: Received wrong chechsum
  */
+
 esp_err_t sgp30_init_air_quality(i2c_master_dev_handle_t dev_handle);
 
 /**
@@ -218,6 +225,7 @@ esp_err_t sgp30_measure_air_quality(
     i2c_master_dev_handle_t dev_handle,
     sgp30_measurement_t *new_measurement
 );
+
 /**
  * @brief Retrieve the baseline from the SGP30 sensor.
  *
@@ -235,6 +243,7 @@ esp_err_t sgp30_get_baseline(
     i2c_master_dev_handle_t dev_handle,
     sgp30_measurement_t *baseline
 );
+
 /**
  * @brief Set the baseline in the SGP30 sensor.
  *
@@ -255,9 +264,31 @@ esp_err_t sgp30_set_baseline(
     const sgp30_measurement_t *baseline
 );
 
+/**
+ * @brief Function to take an air quality measure and post this.
+ *
+ * @param 
+ * @return
+ *     - ESP_OK: Success
+ *     - ESP_RETURN_ON_ERROR: Failure
+ *
+ */
 esp_err_t sgp30_measure_air_quality_and_post_esp_event();
+
+/**
+ * @brief Function to obtain baseline value before taking regular air quality measures.take an air quality measure and post this.
+ *
+ * @param 
+ * @return
+ *     - ESP_OK: Success
+ *     - ESP_RETURN_ON_ERROR: Failure
+ *
+ */
 esp_err_t sgp30_get_baseline_and_post_esp_event();
+
+
 esp_err_t sgp30_set_baseline_and_post_esp_event();
+
 /**
  * @brief Retrieve the ID from the SGP30 sensor.
  *

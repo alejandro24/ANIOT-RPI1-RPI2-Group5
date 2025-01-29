@@ -242,7 +242,7 @@ static esp_err_t crc8_check (
             }
             else
             {
-                //* If it is not, just keep looking for a 1*/
+                /* If it is not, just keep looking for a 1*/
                 crc <<= 1;
             }
         }
