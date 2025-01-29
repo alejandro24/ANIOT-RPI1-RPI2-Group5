@@ -40,19 +40,9 @@ static void mqtt_connected_event_handler(
     int32_t event_id,
     void *event_data
 ) {
-    char *topic;
     ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
     esp_mqtt_client_subscribe(client, DEVICE_ATTRIBUTES_TOPIC, 0);
-    esp_mqtt_client_subscribe(client, PROVISION_RESPONSE_TOPIC, 0);
-    request_count++;
-    int required_size = snprintf(NULL, 0, "%s%d", PROVISION_REQUEST_TOPIC, request_count) + 1; // +1 para el carácter nulo
-    topic = (char*) malloc(required_size);
-    if (topic) {
-        snprintf(topic, required_size, "%s%d", PROVISION_REQUEST_TOPIC, request_count);
-        // Usar topic
-        esp_mqtt_client_publish(client, topic, "{\"sharedKeys\":\"send_time\"}", 0, 1, 0);
-        free(topic); // Liberar memoria cuando ya no se necesite
-    }
+    esp_mqtt_client_subscribe(client, PROVISION_RESPONSE_TOPIC, 1);
 }
 
 static void mqtt_disconnected_event_handler(

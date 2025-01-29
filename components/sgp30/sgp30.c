@@ -11,6 +11,7 @@
 #include "portmacro.h"
 #include "sgp30.h"
 #include "sgp30_types.h"
+#include <stdint.h>
 #include <string.h>
 #include <time.h>
 
@@ -468,16 +469,17 @@ esp_err_t sgp30_device_delete (
     return i2c_master_bus_rm_device (dev_handle);
 }
 
-esp_err_t sgp30_start_measuring (
+esp_err_t sgp30_start_measuring(
     uint32_t s
 )
 {
     return esp_timer_start_periodic (sgp30_req_measurement_timer_handle, ((uint64_t) s) * 1000000);
 }
 esp_err_t sgp30_restart_measuring (
-    uint64_t new_measurement_interval
+    uint32_t s
 )
 {
+    uint64_t new_measurement_interval = ((uint64_t) s) * 1000000;
     if (esp_timer_is_active (sgp30_req_measurement_timer_handle))
     {
         return esp_timer_restart (
@@ -629,7 +631,7 @@ esp_err_t sgp30_get_baseline (
             SGP30_REG_GET_BASELINE,
             NULL,
             0,
-            12,
+            20,
             response,
             2,
             12
@@ -648,7 +650,7 @@ esp_err_t sgp30_get_baseline_and_post_esp_event ()
 {
     sgp30_measurement_t tmp_baseline;
     ESP_RETURN_ON_ERROR (
-        sgp30_get_baseline (sgp30_dev_handle, &tmp_baseline),
+        sgp30_get_baseline(sgp30_dev_handle, &tmp_baseline),
         TAG,
         "Could not get new baseline"
     );
