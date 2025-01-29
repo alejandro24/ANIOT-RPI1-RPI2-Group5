@@ -6,8 +6,6 @@
 #include "esp_err.h"
 #include "esp_event_base.h"
 #include "freertos/idf_additions.h"
-#include "freertos/projdefs.h"
-#include "esp_event.h"
 
 #include "esp_log.h"
 #include "esp_check.h"
@@ -43,13 +41,12 @@ static void mqtt_connected_event_handler(
     int32_t event_id,
     void *event_data
 ) {
-    char *topic;
     ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
     esp_mqtt_client_subscribe(client, DEVICE_ATTRIBUTES_TOPIC, 0);
     esp_mqtt_client_subscribe(client, DEVICE_ATTRIBUTES_RESPONSE, 0);
     request_count++;
     int required_size = snprintf(NULL, 0, "%s%d", DEVICE_ATTRIBUTES_REQUEST, request_count) + 1; // +1 para el carácter nulo
-    topic = (char*) malloc(required_size);
+    char* topic = (char*) malloc(required_size);
     if (topic) {
         snprintf(topic, required_size, "%s%d", DEVICE_ATTRIBUTES_REQUEST, request_count);
         /*Use topic*/
