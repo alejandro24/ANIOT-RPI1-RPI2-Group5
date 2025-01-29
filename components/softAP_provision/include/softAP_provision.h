@@ -12,7 +12,7 @@
 #define PROV_QR_VERSION         "v1"
 #define PROV_TRANSPORT_SOFTAP   "softap"
 
-//[NVS]
+/*[NVS]*/
 typedef enum {
     THINGSBOARD_URL_OBTAINED,
 } provision_event_t;
@@ -23,8 +23,8 @@ typedef enum {
 #define EXAMPLE_PROV_SEC2_PWD               "abcd1234"
 
 /* This salt,verifier has been generated for username = "wifiprov" and password = "abcd1234"
- * IMPORTANT NOTE: For production cases, this must be unique to every device
- * and should come from device manufacturing partition.*/
+   IMPORTANT NOTE: For production cases, this must be unique to every device
+   and should come from device manufacturing partition.*/
 static const char sec2_salt[] = {
     0x03, 0x6e, 0xe0, 0xc7, 0xbc, 0xb9, 0xed, 0xa8, 0x4c, 0x9e, 0xac, 0x97, 0xd9, 0x3d, 0xec, 0xf4
 };
@@ -81,5 +81,5 @@ wifi_credentials_t get_wifi_credentials();
 
 esp_err_t softAP_provision_init(thingsboard_cfg_t *thingsboard_cfg, wifi_credentials_t *wifi_credentials);
 
-#endif // SOFTAP_PROVISION_H
+#endif /* SOFTAP_PROVISION_H*/
 
