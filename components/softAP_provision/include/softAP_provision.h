@@ -57,31 +57,141 @@ static const char sec2_verifier[] = {
 };
 #endif
 
+/**
+ * @brief Function to evaluate how security will be managed based on production or testing phase.
+ *
+ * @param const char **salt. Salt message.
+ * @param uint16_t *salt_len. Lenght of salt.
+ * @return esp_err_t
+ *
+ */
 esp_err_t example_get_sec2_salt(const char **salt, uint16_t *salt_len);
 
-esp_err_t example_get_sec2_verifier(const char **verifier, uint16_t *verifier_len);
+/**
+ * @brief This function follows a similar logic to the previous one: it decides how to handle obtaining 
+   the security verifier based on whether it is in development or production mode. 
+ *
+ * @param const char **verifier. Security verifier.
+ * @param const char **verifier. Security verifier.
+ * @return
+ *
+ */
+esp_err_t example_get_sec2_verifier(const char **verifier, const char **verifier);
 #endif
 
+/**
+ * @brief Function that handles events related to obtaining an IP and provisioning Wi-Fi credentials, 
+   managing both successes and failures, and logging relevant information
+ *
+ * @param void *arg. Additional parameter used for the function.
+ * @param esp_event_base_t event_base. Base of the event.
+ * @param int32_t event_id. ID of the event.
+ * @param void *event_data. Data of event.
+ * @return
+ *
+ */
 void event_handler_got_ip(void *arg, esp_event_base_t event_base, 
                         int32_t event_id, void *event_data);
 
+/**
+ * @brief This function handles events related to the provisioning of Wi-Fi credentials, 
+   managing both successes and failures, and logging relevant information.
+ *
+ * @param void* arg. Additional argument used by the function.
+ * @param esp_event_base_t event_base. Based of the event.
+ * @param int32_t event_id. ID of the event. 
+ * @param void* event_dat. Data of event.
+ * @return
+ *
+ */
 void provision_event_handler(void* arg, esp_event_base_t event_base,
                           int32_t event_id, void* event_data);
 
+/**
+ * @brief This function configures and starts the Wi-Fi in station mode, 
+   allowing the device to connect to available Wi-Fi networks.
+ *
+ * @param 
+ * @return
+ *
+ */
 void wifi_init_sta(void);
 
+/**
+ * @brief These functions configure the device's service name based on its MAC address and handle data received during a provisioning session, 
+   logging success or failure and responding appropriately.
+ *
+ * @param char *service_name. char *service_name: Pointer to the string where the service name will be stored.
+ * @param size_t max. Maximum size of the service 
+ * @return
+ *
+ */
 void get_device_service_name(char *service_name, size_t max);
 
+/**
+ * @brief "This function handles data received during a provisioning session, converting the input buffer into an integer, 
+   preparing a 'SUCCESS' response, and handling memory errors if necessary.
+ *
+ * @param uint32_t session_id. Session ID. 
+ * @param const uint8_t *inbuf. Pointer to the input.
+ * @param ssize_t inlen. Length of the input buffer.
+ * @param uint8_t **outbuf. Double pointer to the output.
+ * @param ssize_t *outlen. Pointer to the length of the output.
+ * @param void *priv_data. Private data (not used in this function).
+ * @return ESP_OK. Success.
+ * @return ESP_ERR_NO_MEM. if outbuf is NULL.
+ * @return ESP_FAIL. If inbuf is NULL. 
+ *
+ */
 esp_err_t data_to_receive_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen,
                                           uint8_t **outbuf, ssize_t *outlen, void *priv_data);
 
+/**
+ * @brief This function handles data received during a provisioning session for ThingsBoard, assigning different configurations based on the value of data_to_receive, 
+   preparing a 'SUCCESS' response, and handling memory errors if necessary.
+ *
+ * @param uint32_t session_id. Session ID.
+ * @param const uint8_t *inbuf. Pointer to the input buffer.
+ * @param ssize_t inlen. Pointer to the input buffer
+ * @param  uint8_t **outbuf. Double pointer to the output. 
+ * @param ssize_t *outlen. Pointer to the length of the output .
+ * @param void *priv_data. Private data.
+ * @return ESP_OK.
+ * @return ESP_ERR_NO_MEM. For outbuf is NULL.
+ * @return ESP_FAIL. When other data_to_receive values are got. 
+ *
+ */
 esp_err_t thingsboard_cnf_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen,
                                           uint8_t **outbuf, ssize_t *outlen, void *priv_data);
 
+/**
+ * @brief Function to get current thingsboard configuration details.
+ *
+ * @param 
+ * @return thingsboard_cfg_t structure including thingsboard configuration info.
+ *
+ */
 thingsboard_cfg_t get_thingsboard_cfg();
 
+/**
+ * @brief provide already provisioned Wi-Fi credentials.
+ *
+ * @param 
+ * @return wifi_credentials_t structure including Wi-Fi credentials.
+ *
+ */
 wifi_credentials_t get_wifi_credentials();
 
+/**
+ * @brief this function initializes the Wi-Fi provisioning process in SoftAP mode for ThingsBoard, 
+   configuring and handling events as necessary.
+ *
+ * @param thingsboard_cfg_t *thingsboard_cfg: Pointer to the ThingsBoard configuration.
+ * @param wifi_credentials_t *wifi_credentials: Pointer to the Wi-Fi credentials.
+ * @return esp_err_t ESP_OK
+ * @return esp_err_t failure for any error. 
+ *
+ */
 esp_err_t softAP_provision_init(thingsboard_cfg_t *thingsboard_cfg, wifi_credentials_t *wifi_credentials);
 
 #endif /* SOFTAP_PROVISION_H*/
