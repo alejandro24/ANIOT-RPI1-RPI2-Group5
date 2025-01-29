@@ -30,14 +30,14 @@ static void deep_sleep_timer_callback(void *arg)
     int64_t elapsed_time = end_time - start_time;
 
     /* Show elapsed time in seconds*/
-    ESP_LOGI(TAG, "Tiempo de ejecución del temporizador: %lld microsegundos", elapsed_time);
+    ESP_LOGI(TAG, "Timer execution time: %lld microseconds", elapsed_time);
 
     esp_event_post(POWER_MANAGER_EVENT, POWER_MANAGER_DEEP_SLEEP_EVENT, NULL, 0, portMAX_DELAY);
 }
 
 void power_manager_enter_deep_sleep()
 {
-    ESP_LOGI(TAG, "Entrando en deep_sleep.");
+    ESP_LOGI(TAG, "Entering deep_sleep.");
     esp_deep_sleep_start();
 }
 
@@ -57,7 +57,7 @@ void power_manager_init()
 #endif
     };
     ESP_ERROR_CHECK(esp_pm_configure(&pm_config));
-    ESP_LOGI(TAG, "Configurado gestor de energia automatico");
+    ESP_LOGI(TAG, "Configured automatic power manager");
 #endif // CONFIG_PM_ENABLE
 
     uint64_t sleep_hours = DEFAULT_SLEEP_HOURS * CONVERSION_HOURS_TO_MICROSECONDS;
@@ -65,7 +65,7 @@ void power_manager_init()
 
     /* Set timer to wake up from deep_sleep every 10 hours */
     ESP_ERROR_CHECK(esp_sleep_enable_timer_wakeup(sleep_hours));
-    ESP_LOGI(TAG, "Configurado wakeup por timer en %d horas", (DEFAULT_SLEEP_HOURS));
+    ESP_LOGI(TAG, "Configured wakeup by timer in %d hours", (DEFAULT_SLEEP_HOURS));
 
     /* Set timer to enter deep_sleep mode every 14 hours */
     esp_timer_create_args_t deep_sleep_timer_args = {
@@ -74,7 +74,7 @@ void power_manager_init()
 
     ESP_ERROR_CHECK(esp_timer_create(&deep_sleep_timer_args, &deep_sleep_timer));
     ESP_ERROR_CHECK(esp_timer_start_once(deep_sleep_timer, active_hours));
-    ESP_LOGI(TAG, "Configurado deep_sleep en %d horas", (DEFAULT_ACTIVE_HOURS));
+    ESP_LOGI(TAG, "Set deep_sleep to %d hours", (DEFAULT_ACTIVE_HOURS));
 }
 
 esp_err_t power_manager_set_sntp_time(struct tm *timeinfo)
@@ -90,10 +90,10 @@ esp_err_t power_manager_set_sntp_time(struct tm *timeinfo)
     if (esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER) != ESP_OK) /* Try to deactivate timer trigger only*/
         errcode = esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);   /* disable all*/
 
-    ESP_RETURN_ON_ERROR(errcode, TAG, "Error desactivando el timer de wakeup por defecto");
+    ESP_RETURN_ON_ERROR(errcode, TAG, "Error disabling the default wakeup timer");
 
     errcode = esp_timer_stop(deep_sleep_timer);
-    ESP_RETURN_ON_ERROR(errcode, TAG, "Error parando el timer de entrar en deep_sleep por defecto");
+    ESP_RETURN_ON_ERROR(errcode, TAG, "Error stopping the timer from entering deep_sleep by default");
 
     /* Enable with new values ​​calculated using SNTP time
        Get start and end times from Kconfig settings*/
@@ -121,7 +121,7 @@ esp_err_t power_manager_set_sntp_time(struct tm *timeinfo)
     /* Counter for total time in active range*/
     int64_t total_active_time_in_minutes = 0;
 
-    ESP_LOGI(TAG, "Configurando power manager con rango activo: %s - %s.",
+    ESP_LOGI(TAG, "Configuring power manager with active range: %s - %s.",
              start_time_str, end_time_str);
 
     /* Cross active range, e.g. from 22:00 to 08:00*/
@@ -181,7 +181,7 @@ esp_err_t power_manager_set_sntp_time(struct tm *timeinfo)
 
             if (wakeup_time_in_minutes < 0)
             {
-                // Ajustar si es negativo (es decir, si la hora actual es mayor que la hora de inicio)
+                /* Set if negative (i.e. if current time is greater than start time)*/
                 wakeup_time_in_minutes += 24 * 60;
             }
 
@@ -192,11 +192,11 @@ esp_err_t power_manager_set_sntp_time(struct tm *timeinfo)
     uint64_t wkup_time_us = (uint64_t)(wakeup_time_in_minutes * CONVERSION_MINUTES_TO_MICROSECONDS);
     uint64_t time_till_sleep_us = (uint64_t)(time_till_sleep_in_minutes * CONVERSION_MINUTES_TO_MICROSECONDS);
 
-    ESP_LOGI(TAG, "Configurado wakeup tras deep_sleep en %" PRId64 " horas y %" PRId64 " minutos (%" PRId64 " minutos, %" PRIu64 " us).",
+    ESP_LOGI(TAG, "Configured wakeup after deep_sleep to %" PRId64 " hours and %" PRId64 " minutes (%" PRId64 " minutes, %" PRIu64 " us).",
              wakeup_time_in_minutes / 60, wakeup_time_in_minutes % 60, wakeup_time_in_minutes, wkup_time_us);
 
-    errcode = esp_sleep_enable_timer_wakeup(wkup_time_us); // En microsegundos
-    ESP_RETURN_ON_ERROR(errcode, TAG, "Error activando el nuevo timer de wakeup por rango horario");
+    errcode = esp_sleep_enable_timer_wakeup(wkup_time_us); /* In microsecondss*/
+    ESP_RETURN_ON_ERROR(errcode, TAG, "Error activating the new wakeup timer by time range");
 
     start_time = esp_timer_get_time(); /* Time before starting the deep_sleep timer, something is wrong and I don't know what it is, let's check it*/
 
@@ -205,9 +205,9 @@ esp_err_t power_manager_set_sntp_time(struct tm *timeinfo)
     else
     { /*Enable timer to notify us when it is time to enter deep_sleep*/ 
         errcode = esp_timer_start_once(deep_sleep_timer, time_till_sleep_us);
-        ESP_RETURN_ON_ERROR(errcode, TAG, "Error activando el nuevo timer de entrar en deep_sleep por rango horario");
+        ESP_RETURN_ON_ERROR(errcode, TAG, "Error activating the new timer to enter deep_sleep due to time range");
 
-        ESP_LOGI(TAG, "Tiempo hasta entrar en deep_sleep: %" PRId64 " horas y %" PRId64 " minutos (%" PRId64 " minutos, %" PRIu64 " us).",
+        ESP_LOGI(TAG, "Time until entering deep_sleep: %" PRId64 " hours and %" PRId64 " minutes (%" PRId64 " minutes, %" PRIu64 " us)",
                  time_till_sleep_in_minutes / 60, time_till_sleep_in_minutes % 60, time_till_sleep_in_minutes, time_till_sleep_us);
     }
 
