@@ -8,17 +8,17 @@ ESP_EVENT_DECLARE_BASE(POWER_MANAGER_EVENT);
 
 #define POWER_MANAGER_DEEP_SLEEP_EVENT 0
 
-/* Configuración del rango horario activo por defecto*/
+/* Configuration of the active default time range*/
 #define DEFAULT_START_HOUR 8
 #define DEFAULT_END_HOUR 22
 
-/* Duración por defecto si no hay RTC (14 horas activo, 10 en Deep Sleep)*/
+/* Default duration if there is no RTC (14 hours active, 10 in Deep Sleep)*/
 #define DEFAULT_ACTIVE_HOURS 14
 #define DEFAULT_SLEEP_HOURS 10
 
-/* 1 hora = 36 * 100.000.000 microsegundos*/
+/* 1 hour = 36 * 100.000.000 microseconds*/
 #define CONVERSION_HOURS_TO_MICROSECONDS (36ULL * 100 * 1000 * 1000)
-/* 1 minuto = 60 * 1.000.000 microsegundos*/
+/* 1 minute = 60 * 1.000.000 microseconds*/
 #define CONVERSION_MINUTES_TO_MICROSECONDS (60L * 1000 * 1000)
 
 /**
@@ -38,7 +38,7 @@ void power_manager_init();
 esp_err_t power_manager_set_sntp_time(struct tm *timeinfo);
 
 /**
- * @brief Procedure to switch power option to deep sleep mode..
+ * @brief Procedure to switch power option to deep sleep mode.
  * @param 
  * @return
  * 
