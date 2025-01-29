@@ -136,18 +136,23 @@ The following components have been considered and deployed for this system:
      
 - **thingsboard**
 - 
-- **wifi**
+- **wifi Power Manager**
+  Component to manage Wi-Fi Power and save power when needed.
+
+  Functions defined are the follow:
+  - esp_err_t wifi_power_save_init(void). Function to initialize the Wi-Fi power manager.
+  - esp_err_t wifi_set_power_mode(wifi_power_mode_t mode). Function to set the Wi-Fi power mode
+    
 - **Power Manager**
+   Component to manage ESP32 Power configuration. It will be switched off from 22 pm to 8 am and works from 8 am to 22 pm.
+
+  Functions and procedures defined are the follow:
    -  ESP_EVENT_DECLARE_BASE(POWER_MANAGER_EVENT);
    -  void power_manager_init();
    -  esp_err_t power_manager_set_sntp_time(struct tm *timeinfo);
    -  void power_manager_enter_deep_sleep();
    -  void power_manager_deinit();
 
-# _Deployement_
-
-# _Testing_and Troubleshooting_
-_
 ## QUICK START
 git clone
 Configure WiFi credentials and ThingsBoard settings
